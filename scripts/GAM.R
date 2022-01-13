@@ -12,16 +12,24 @@
     library(tidyverse)
     library(mgcv)
     library(visreg)
+    library(lubridate)
 
   # Clear Environment
     rm(list=ls())
 
   # Import Data
-    data <- read_csv("data/shorebird-disturbance-06.csv", guess_max = 1000000)
+    data <- read_csv("../data/shorebird-disturbance.csv", guess_max = 1000000)
 
 #### general data augmentation ####
 
     data_aug <- data %>%
+      
+      # add datetime in aest
+      mutate(`datetime(aest)` = as_datetime(`datetime(utc)`*60*60*24, origin="1899/12/30 0:00:00", tz = "australia/queensland"))%>% 
+      
+      # add month factor
+      
+      mutate(month = month(`datetime(aest)`)) %>% 
       
       # add flightcode to group by
       mutate(flightcode = paste0(as.character(test), as.character(flight))) %>%
