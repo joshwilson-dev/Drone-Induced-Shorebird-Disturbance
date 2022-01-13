@@ -640,6 +640,6 @@
     data <- bind_rows(mget(filenames))
     
   # Save Data
-    write.csv(data,"data/shorebird-disturbance-06.csv", row.names = FALSE)
+    write.csv(data,"data/shorebird-disturbance.csv", row.names = FALSE)
   
   
