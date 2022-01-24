@@ -39,7 +39,7 @@ data_aug <- data %>%
             origin = "1899/12/30 0:00:00",
             tz = "australia/queensland")) %>%
     # add month factor
-    mutate(month = month(`datetime(aest)`)) %>%
+    mutate(month = month(datetime_aest)) %>%
     # add flightcode to group by
     mutate(flightcode = paste0(as.character(test), as.character(flight))) %>%
     # group by flight code
