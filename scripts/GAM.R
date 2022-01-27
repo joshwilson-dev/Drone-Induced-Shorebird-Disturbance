@@ -27,7 +27,7 @@ library(lubridate)
 rm(list = ls())
 
 # Import Data
-data <- read_csv("../data/shorebird-disturbance.csv", guess_max = 1000000)
+data <- read_csv("data/shorebird-disturbance.csv", guess_max = 1000000)
 
 #### general data augmentation ####
 data_aug <- data %>%
@@ -39,7 +39,18 @@ data_aug <- data %>%
             origin = "1899/12/30 0:00:00",
             tz = "australia/queensland")) %>%
     # add month integer
-    mutate(month = as.factor(month(datetime_aest))) %>%
+    mutate(month = month(datetime_aest)) %>%
+    # add life stage
+    mutate(
+        lifestage =
+        as.factor(
+            case_when(
+                month < 3 | month > 10 ~ "nonbreeding",
+                month > 3 & month < 6 ~ "northwardmigration",
+                month > 6 & month < 9 ~ "breeding",
+                month > 8 & month < 12 ~ "southwardmigration")
+                )
+     ) %>%
     # add flightcode to group by
     mutate(flightcode = paste0(as.character(test), as.character(flight))) %>%
     # group by flight code
@@ -55,7 +66,6 @@ data_aug <- data %>%
         `eastern.curlew.presence` =
         as.factor(case_when((is.na(`eastern curlew behaviour`)) ~ FALSE,
         (TRUE ~ TRUE)))) %>%
-
     # pivot long so that each species is on a different row
       pivot_longer(
           cols = ends_with("behaviour") | ends_with("count"),
@@ -63,14 +73,12 @@ data_aug <- data %>%
           names_pattern = "(.+) (.+)",
           names_transform = list(species = as.factor),
           values_drop_na = TRUE) %>%
-
-    # convert to binary
+    # convert behaviour to binary
     mutate(
         behaviour =
         case_when(behaviour == "nominal" ~ 0,
         behaviour == "flight" ~ 1,
         TRUE ~ 2)) %>%
-
     # degrade data into first instance where behaviour state changes
     mutate(
         behaviour =
@@ -81,30 +89,22 @@ data_aug <- data %>%
     group_by(flightcode, species, behaviour, `approach type`) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
-
     # make column names correct format for gam
     rename_all(make.names)
 
 #### fia analysis ####
 data_fia <- data_aug %>%
-
     # keep only flights where the drone was advancing
     filter(approach.type == "advancing") %>%
-
     # drop the landed behaviour state
     filter(behaviour != 2) %>%
-
     # keep only the maximum behaviour state
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(flightcode, species) %>%
     filter(behaviour == max(behaviour)) %>%
-
     # filter out species without enough data
     group_by(species) %>%
-    filter(n() > 25) %>%
-
-    # filter out mistakes
-    filter(drone != "inspire 2", drone != "phatom 4 pro")
+    filter(n() > 25)
 
 # fit GAM
 # Question: at what altitude does flight not occur?
@@ -120,7 +120,11 @@ data_fia <- data_aug %>%
 # eastern curlew presence:
 # does the behaviour vary with the presence of eastern curlew
 
+# life stage
+# does the behaviour vary with life stage
+
 # Interactions
+
 # altitude - species:
 # does the relationship between altitude and behaviour vary between species
 
@@ -132,15 +136,14 @@ gam_fia <- gam(
     ~ species +
     s(height_above_takeoff.meters.) +
     eastern.curlew.presence +
-    month,
+    lifestage,
     data = data_fia,
     family = "binomial",
     method = "REML",
     select = T)
 summary(gam_fia)
-
-summary(gam_fia)
-
+windows()
+visreg(gam_fia)
 # Creating new data
 
 altitude_fia <- seq(0, 120, by = 1)
