@@ -38,8 +38,8 @@ data_aug <- data %>%
             `datetime(utc)` * 60 * 60 * 24,
             origin = "1899/12/30 0:00:00",
             tz = "australia/queensland")) %>%
-    # add month factor
-    mutate(month = month(datetime_aest)) %>%
+    # add month integer
+    mutate(month = as.factor(month(datetime_aest))) %>%
     # add flightcode to group by
     mutate(flightcode = paste0(as.character(test), as.character(flight))) %>%
     # group by flight code
@@ -74,7 +74,10 @@ data_aug <- data %>%
     # degrade data into first instance where behaviour state changes
     mutate(
         behaviour =
-        factor(behaviour, levels = c(0, 1, 2), ordered=TRUE)) %>%
+        factor(
+            behaviour,
+            levels = c(0, 1, 2),
+            ordered = TRUE)) %>%
     group_by(flightcode, species, behaviour, `approach type`) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
@@ -92,13 +95,15 @@ data_fia <- data_aug %>%
     filter(behaviour != 2) %>%
 
     # keep only the maximum behaviour state
-    mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered=TRUE)) %>%
+    mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(flightcode, species) %>%
     filter(behaviour == max(behaviour)) %>%
 
     # filter out species without enough data
     group_by(species) %>%
     filter(n() > 25) %>%
+
+    # filter out mistakes
     filter(drone != "inspire 2", drone != "phatom 4 pro")
 
 # fit GAM
@@ -124,13 +129,15 @@ data_fia <- data_aug %>%
 
 gam_fia <- gam(
     behaviour
-    ~ species
-    + s(height_above_takeoff.meters.)
-    + eastern.curlew.presence,
+    ~ species +
+    s(height_above_takeoff.meters.) +
+    eastern.curlew.presence +
+    month,
     data = data_fia,
     family = "binomial",
     method = "REML",
     select = T)
+summary(gam_fia)
 
 summary(gam_fia)
 
@@ -140,10 +147,11 @@ altitude_fia <- seq(0, 120, by = 1)
 species_fia <- unique(data_fia$species)
 eastern_curlew_prescence_fia <- unique(data_fia$eastern.curlew.presence)
 
-new_data_fia = expand.grid(
+new_data_fia <- expand.grid(
     height_above_takeoff.meters. = altitude_fia,
     species = species_fia,
-    eastern.curlew.presence = eastern_curlew_prescence_fia)
+    eastern.curlew.presence = eastern_curlew_prescence_fia,
+    month = month_fia)
 
 pred_fia <- predict.gam(gam_fia,
                     new_data_fia,
@@ -161,54 +169,49 @@ results_fia <- new_data_fia %>%
 ggplot() +
     theme_set(theme_bw()) +
     geom_line(
-    data = filter(fia_results, eastern.curlew.presence == FALSE),
-    aes(height_above_takeoff.meters.,
-        prediction,
-        group = species,
-        colour = species),
-    size = 1.2) +
+        data = filter(results_fia, eastern.curlew.presence == FALSE),
+        aes(
+            height_above_takeoff.meters.,
+            prediction,
+            group = species,
+            colour = species),
+        size = 1.2) +
     geom_ribbon(
-    data = filter(fia_results, eastern.curlew.presence == FALSE),
-    aes(height_above_takeoff.meters.,
-        ymin = lower,
-        ymax = upper,
-        group = species,
-        colour = species,
-        fill = species),
-    alpha = 0.05) +
+        data = filter(results_fia, eastern.curlew.presence == FALSE),
+        aes(
+            height_above_takeoff.meters.,
+            ymin = lower,
+            ymax = upper,
+            group = species,
+            colour = species,
+            fill = species),
+        alpha = 0.05) +
     facet_wrap(~species) +
-    geom_rug(aes(height_above_takeoff.meters.,
-                group = species,
-                colour = species),
-            inherit.aes = FALSE,
-            transform(
-                filter(data_fia, behaviour == 0),
-                expl.name = height_above_takeoff.meters.),
-            sides = "b") +
-    geom_rug(aes(height_above_takeoff.meters.,
-                group = species,
-                colour = species),
-            inherit.aes = FALSE,
-            transform(
-                filter(data_fia, behaviour == 1),
-                expl.name = height_above_takeoff.meters.),
-            sides = "t") +
-    labs(x = "Drone Altitude Above Birds (m)",
+    geom_rug(
+        aes(height_above_takeoff.meters., group = species, colour = species),
+        inherit.aes = FALSE,
+        transform(
+            filter(data_fia, behaviour == 0),
+            expl.name = height_above_takeoff.meters.),
+        sides = "b") +
+    geom_rug(
+        aes(height_above_takeoff.meters., group = species, colour = species),
+        inherit.aes = FALSE,
+        transform(
+            filter(data_fia, behaviour == 1),
+            expl.name = height_above_takeoff.meters.),
+        sides = "t") +
+    labs(
+        x = "Drone Altitude Above Birds (m)",
         y = "Probability of Inducing Bird Flight",
         fill = "Eastern Curlew Precense",
         colour = "Eastern Curlew Precense") +
-    # ggtitle("Sub 2kg Drone Induced Shorebird Disturbance") +
-    theme(axis.text = element_text(face = "bold",
-                                color = "black"),
-    axis.title = element_text(size = 14,
-                            face = "bold"),
-    plot.title = element_text(size = 16,
-                                face = "bold",
-                                hjust = 0.5),
-    legend.position = "none",
-    strip.text.x = element_text(
-        size = 10,
-        face = "bold"))
+    theme(
+        axis.text = element_text(face = "bold", color = "black"),
+        axis.title = element_text(size = 14, face = "bold"),
+        plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        legend.position = "none",
+        strip.text.x = element_text(size = 10, face = "bold"))
 
 # species sensitivity vs eastern curlew presence
 ggplot() +
@@ -243,7 +246,7 @@ ggplot() +
     geom_boxplot(
         data =
         filter(
-            fia_results,
+            results_fia,
             species != "eastern curlew" &
             height_above_takeoff.meters. > 40),
         aes(
@@ -277,7 +280,6 @@ data_fid <- data_aug %>%
 
     #remove all drones except mavic 2 pro
     filter(drone == "mavic 2 pro")
-
 
 # fit GAM
 
