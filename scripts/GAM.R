@@ -76,15 +76,17 @@ data_aug <- data %>%
     # convert behaviour to binary
     mutate(
         behaviour =
-        case_when(behaviour == "nominal" ~ 0,
-        behaviour == "flight" ~ 1,
-        TRUE ~ 2)) %>%
-    # degrade data into first instance where behaviour state changes
+        case_when(
+            behaviour == "nominal" ~ 1,
+            behaviour == "flight" ~ 2,
+            behaviour == "landed" ~ 3,
+            TRUE ~ 0)) %>%
+    # degrade data into first instance of maximum behaviour per approach type
     mutate(
         behaviour =
         factor(
             behaviour,
-            levels = c(0, 1, 2),
+            levels = c(0, 1, 2, 3),
             ordered = TRUE)) %>%
     group_by(flightcode, species, behaviour, `approach type`) %>%
     filter(behaviour == max(behaviour)) %>%
