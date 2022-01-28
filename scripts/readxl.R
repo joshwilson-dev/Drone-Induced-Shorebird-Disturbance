@@ -468,9 +468,9 @@ filenames <- c(
     "t081f05", # no count
     "t081f06", # no count
 
-    "t082f01", # no count
-    "t082f02", # no count
-    "t082f03", # no count
+    "t082f01", # completed
+    "t082f02", # completed
+    "t082f03", # completed
 
     "t083f01", # no count
 
@@ -485,25 +485,25 @@ filenames <- c(
 
     "t088f01", # no count
 
-    "t089f01", # no count
+    "t089f01", # completed
 
-    "t090f01", # no count
+    "t090f01", # completed
 
-    "t091f01", # no count
+    "t091f01", # completed revise count
 
-    "t092f01", # no count
+    "t092f01", # completed revise count
 
-    "t093f01", # no count
+    "t093f01", # completed
 
-    "t094f01", # no count
+    "t094f01", # completed
 
-    # "t095f01", # no count phantom
+    "t095f01", # completed
 
-    # "t096f01", # complete phantom
+    "t096f01", # completed
 
-    "t097f01", # no count
+    "t097f01", # completed
 
-    "t098f01", # no count
+    "t098f01", # completed
 
     "t099f01", # completed
 
