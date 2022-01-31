@@ -439,44 +439,44 @@ filenames <- c(
     "t076f04", # no count
     "t076f05", # no count
 
-    "t077f01", # no count
-    "t077f02", # no count
-    "t077f03", # no count
-    "t077f04", # no count
+    "t077f01", # completed
+    "t077f02", # completed
+    "t077f03", # completed
+    "t077f04", # completed
 
-    "t078f01", # no count
-    "t078f02", # no count
-    "t078f03", # no count
-    "t078f04", # no count
-    "t078f05", # no count
+    "t078f01", # completed
+    "t078f02", # completed
+    "t078f03", # completed
+    "t078f04", # completed
+    "t078f05", # completed
 
-    "t079f01", # no count
-    "t079f02", # no count
-    "t079f03", # no count
-    "t079f04", # no count
+    "t079f01", # completed
+    "t079f02", # completed
+    "t079f03", # completed
+    "t079f04", # completed
 
-    "t080f01", # no count
-    "t080f02", # no count
-    "t080f03", # no count
-    "t080f04", # no count
-    "t080f05", # no count
+    "t080f01", # completed
+    "t080f02", # completed
+    "t080f03", # completed
+    "t080f04", # completed
+    "t080f05", # completed
 
-    "t081f01", # no count
-    "t081f02", # no count
-    "t081f03", # no count
-    "t081f04", # no count
-    "t081f05", # no count
-    "t081f06", # no count
+    "t081f01", # completed
+    "t081f02", # completed
+    "t081f03", # completed
+    "t081f04", # completed
+    "t081f05", # completed
+    "t081f06", # completed
 
     "t082f01", # completed
     "t082f02", # completed
     "t082f03", # completed
 
-    "t083f01", # no count
+    "t083f01", # completed
 
-    "t084f01", # no count
+    "t084f01", # completed
 
-    "t085f01", # no count
+    "t085f01", # completed
 
     "t086f01", # no count
 
