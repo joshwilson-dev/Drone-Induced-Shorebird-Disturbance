@@ -408,36 +408,36 @@ filenames <- c(
 
     # MAVIC 2 PRO
 
-    "t070f01", # no count
+    "t070f01", # DONE
     "t070f02", # no count
-    "t070f03", # no count
+    "t070f03", # DONE
 
     "t071f01", # no count
     "t071f02", # no count
 
-    "t072f01", # no count
-    "t072f02", # no count
-    "t072f03", # no count
-    "t072f04", # no count
+    "t072f01", # DONE
+    "t072f02", # DONE
+    "t072f03", # DONE
+    "t072f04", # DONE
 
-    "t073f01", # no count
-    "t073f02", # no count
-    "t073f03", # no count
-    "t073f04", # no count
+    "t073f01", # DONE
+    "t073f02", # DONE
+    "t073f03", # DONE
+    "t073f04", # DONE
 
-    "t074f01", # no count
+    "t074f01", # DONE
 
-    "t075f01", # no count
-    "t075f02", # no count
-    "t075f03", # no count
-    "t075f04", # no count
-    "t075f05", # no count
+    "t075f01", # DONE
+    "t075f02", # DONE
+    "t075f03", # DONE
+    "t075f04", # DONE
+    "t075f05", # DONE
 
-    "t076f01", # no count
-    "t076f02", # no count
-    "t076f03", # no count
-    "t076f04", # no count
-    "t076f05", # no count
+    "t076f01", # DONE
+    "t076f02", # DONE
+    "t076f03", # DONE
+    "t076f04", # DONE
+    "t076f05", # DONE
 
     "t077f01", # completed
     "t077f02", # completed
