@@ -318,48 +318,48 @@ filenames <- c(
     "t049f00", # no count
     "t049f01", # no count
 
-    "t050f00", # no count
-    "t050f01", # no count
+    "t050f00", # DONE
+    "t050f01", # DONE
 
-    "t051f00", # no count
-    "t051f01", # no count
+    "t051f00", # DONE
+    "t051f01", # DONE
 
-    "t052f00", # no count
-    "t052f01", # no count
+    "t052f00", # DONE
+    "t052f01", # DONE
 
-    "t053f00", # no count
-    "t053f01", # no count
+    "t053f00", # DONE
+    "t053f01", # DONE
 
-    "t054f00", # no count
-    "t054f01", # no count
+    "t054f00", # DONE
+    "t054f01", # DONE
 
-    "t056f00", # no count
-    "t056f01", # no count
+    "t056f00", # DONE
+    "t056f01", # DONE
 
-    "t057f00", # no count
-    "t057f01", # no count
-    "t057f02", # no count
-    "t057f03", # no count
-    "t057f04", # no count
-    "t057f05", # no count
-    "t057f06", # no count
-    "t057f07", # no count
-    "t057f08", # no count
-    "t057f09", # no count
+    "t057f00", # DONE
+    "t057f01", # DONE
+    "t057f02", # DONE
+    "t057f03", # DONE
+    "t057f04", # DONE
+    "t057f05", # DONE
+    "t057f06", # DONE
+    "t057f07", # DONE
+    "t057f08", # DONE
+    "t057f09", # DONE
 
-    "t058f00", # no count
-    "t058f01", # no count
-    "t058f02", # no count
+    "t058f00", # DONE
+    "t058f01", # DONE
+    "t058f02", # DONE
 
-    "t059f00", # no count
-    "t059f01", # no count
+    "t059f00", # DONE
+    "t059f01", # DONE
 
-    "t060f00", # no count
-    "t060f01", # no count
-    "t060f02", # no count
-    "t060f03", # no count
-    "t060f04", # no count
-    "t060f05", # no count
+    "t060f00", # DONE
+    "t060f01", # DONE
+    "t060f02", # DONE
+    "t060f03", # DONE
+    "t060f04", # DONE
+    "t060f05", # DONE
 
     "t061f00", # DONE
     "t061f01", # DONE
