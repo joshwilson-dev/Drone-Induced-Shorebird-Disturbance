@@ -361,59 +361,59 @@ filenames <- c(
     "t060f04", # no count
     "t060f05", # no count
 
-    "t061f00", # no count
-    "t061f01", # no count
-    "t061f02", # no count
-    "t061f03", # no count
+    "t061f00", # DONE
+    "t061f01", # DONE
+    "t061f02", # DONE
+    "t061f03", # DONE
 
-    "t062f00", # no count
-    "t062f01", # no count
-    "t062f02", # no count
-    "t062f03", # no count
-    "t062f04", # no count
+    "t062f00", # DONE
+    "t062f01", # DONE
+    "t062f02", # DONE
+    "t062f03", # DONE
+    "t062f04", # DONE
 
-    "t063f00", # no count
-    "t063f01", # no count
+    "t063f00", # DONE
+    "t063f01", # DONE
 
-    "t064f00", # no count
-    "t064f01", # no count
+    "t064f00", # DONE
+    "t064f01", # DONE
 
-    "t065f01", # no count
-    "t065f02", # no count
+    "t065f01", # DONE
+    "t065f02", # DONE
 
-    "t066f00", # no count
-    "t066f01", # no count
-    "t066f02", # no count
+    "t066f00", # DONE
+    "t066f01", # DONE
+    "t066f02", # DONE
 
-    "t067f00", # complete
-    "t067f01", # complete
-    "t067f02", # complete
-    "t067f03", # complete
-    "t067f04", # complete
-    "t067f05", # complete
-    "t067f06", # complete
+    "t067f00", # DONE
+    "t067f01", # DONE
+    "t067f02", # DONE
+    "t067f03", # DONE
+    "t067f04", # DONE
+    "t067f05", # DONE
+    "t067f06", # DONE
 
-    "t068f00", # complete
-    "t068f01", # complete
-    "t068f02", # complete
-    "t068f03", # complete
-    "t068f04", # complete
+    "t068f00", # DONE
+    "t068f01", # DONE
+    "t068f02", # DONE
+    "t068f03", # DONE
+    "t068f04", # DONE
 
-    "t069f00", # no count
-    "t069f01", # no count
-    "t069f02", # no count
-    "t069f03", # no count
-    "t069f04", # no count
-    "t069f05", # no count
+    "t069f00", # DONE
+    "t069f01", # DONE
+    "t069f02", # DONE
+    "t069f03", # DONE
+    "t069f04", # DONE
+    "t069f05", # DONE
 
     # MAVIC 2 PRO
 
     "t070f01", # DONE
-    "t070f02", # no count
+    "t070f02", # DONE
     "t070f03", # DONE
 
-    "t071f01", # no count
-    "t071f02", # no count
+    "t071f01", # DONE
+    "t071f02", # DONE
 
     "t072f01", # DONE
     "t072f02", # DONE
@@ -439,10 +439,10 @@ filenames <- c(
     "t076f04", # DONE
     "t076f05", # DONE
 
-    "t077f01", # completed
-    "t077f02", # completed
-    "t077f03", # completed
-    "t077f04", # completed
+    "t077f01", # DONE
+    "t077f02", # DONE
+    "t077f03", # DONE
+    "t077f04", # DONE
 
     "t078f01", # completed
     "t078f02", # completed
