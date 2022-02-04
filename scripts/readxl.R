@@ -212,40 +212,40 @@ filenames <- c(
     "t027f05", # complete
     "t027f06", # complete
 
-    "t028f00", # complete
-    "t028f01", # complete
-    "t028f02", # complete
-    "t028f03", # complete
-    "t028f04", # complete
-    "t028f05", # complete
-    "t028f06", # complete
-    "t028f07", # complete
+    "t028f00", # DONE
+    "t028f01", # DONE
+    "t028f02", # DONE
+    "t028f03", # DONE
+    "t028f04", # DONE
+    "t028f05", # DONE
+    "t028f06", # DONE
+    "t028f07", # DONE
 
-    "t029f00", # complete
-    "t029f01", # complete
-    "t029f02", # complete
-    "t029f03", # complete
-    "t029f04", # complete
-    "t029f05", # complete
-    "t029f06", # complete
-    "t029f07", # complete
+    "t029f00", # DONE
+    "t029f01", # DONE
+    "t029f02", # DONE
+    "t029f03", # DONE
+    "t029f04", # DONE
+    "t029f05", # DONE
+    "t029f06", # DONE
+    "t029f07", # DONE
 
-    "t030f00", # complete
-    "t030f01", # complete
-    "t030f02", # complete
-    "t030f03", # complete
-    "t030f04", # complete
-    "t030f05", # complete
-    "t030f06", # complete
-    "t030f07", # complete
+    "t030f00", # DONE
+    "t030f01", # DONE
+    "t030f02", # DONE
+    "t030f03", # DONE
+    "t030f04", # DONE
+    "t030f05", # DONE
+    "t030f06", # DONE
+    "t030f07", # DONE
 
-    "t031f00", # complete
-    "t031f01", # complete
-    "t031f02", # complete
-    "t031f03", # complete
-    "t031f04", # complete
-    "t031f05", # complete
-    "t031f06", # complete
+    "t031f00", # DONE
+    "t031f01", # DONE
+    "t031f02", # DONE
+    "t031f03", # DONE
+    "t031f04", # DONE
+    "t031f05", # DONE
+    "t031f06", # DONE
 
     "t032f00", # no count
     "t032f01", # no count
@@ -285,38 +285,38 @@ filenames <- c(
     "t039f00", # no count
     "t039f01", # no count
 
-    "t040f00", # no count
-    "t040f01", # no count
+    "t040f00", # DONE
+    "t040f01", # DONE
 
-    "t041f00", # no count
-    "t041f01", # no count
+    "t041f00", # DONE
+    "t041f01", # DONE
 
-    "t042f00", # no count
-    "t042f01", # no count
+    "t042f00", # DONE
+    "t042f01", # DONE
 
-    "t043f00", # no count
-    "t043f01", # no count
+    "t043f00", # DONE
+    "t043f01", # DONE
 
-    "t044f00", # no count
-    "t044f01", # no count
+    "t044f00", # DONE
+    "t044f01", # DONE
 
-    "t045f00", # no count
-    "t045f01", # no count
-    "t045f02", # no count
+    "t045f00", # DONE
+    "t045f01", # DONE
+    "t045f02", # DONE
 
-    "t046f00", # no count
-    "t046f01", # no count
-    "t046f02", # no count
+    "t046f00", # DONE
+    "t046f01", # DONE
+    "t046f02", # DONE
 
-    "t047f00", # no count
-    "t047f01", # no count
+    "t047f00", # DONE
+    "t047f01", # DONE
 
-    "t048f00", # no count
-    "t048f01", # no count
-    "t048f02", # no count
+    "t048f00", # DONE
+    "t048f01", # DONE
+    "t048f02", # DONE
 
-    "t049f00", # no count
-    "t049f01", # no count
+    "t049f00", # DONE
+    "t049f01", # DONE
 
     "t050f00", # DONE
     "t050f01", # DONE
