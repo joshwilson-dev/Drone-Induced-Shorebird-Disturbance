@@ -27,133 +27,133 @@ rm(list = ls())
 # Data to Import
 filenames <- c(
     # PHANTOM 4 PRO
-    "t003f00", # complete
-    "t003f01", # complete
-    "t003f02", # complete
-    "t003f03", # complete
-    "t003f04", # complete
-    "t003f05", # complete
-    "t003f06", # complete
-    "t003f07", # complete
+    "t003f00", # DONE
+    "t003f01", # DONE
+    "t003f02", # DONE
+    "t003f03", # DONE
+    "t003f04", # DONE
+    "t003f05", # DONE
+    "t003f06", # DONE
+    "t003f07", # DONE
     # "t003f08", # direct descent
 
-    "t004f00", # complete
-    "t004f01", # complete
-    "t004f02", # complete
-    "t004f03", # complete
-    "t004f04", # complete
-    "t004f05", # complete
-    "t004f06", # complete
-    "t004f07", # complete
+    "t004f00", # DONE
+    "t004f01", # DONE
+    "t004f02", # DONE
+    "t004f03", # DONE
+    "t004f04", # DONE
+    "t004f05", # DONE
+    "t004f06", # DONE
+    "t004f07", # DONE
     # "t004f08", # direct descent
 
-    "t005f00", # complete
-    "t005f01", # complete
-    "t005f02", # complete
-    "t005f03", # complete
-    "t005f04", # complete
-    "t005f05", # complete
-    "t005f06", # complete
-    "t005f07", # complete
+    "t005f00", # DONE
+    "t005f01", # DONE
+    "t005f02", # DONE
+    "t005f03", # DONE
+    "t005f04", # DONE
+    "t005f05", # DONE
+    "t005f06", # DONE
+    "t005f07", # DONE
     # "t005f08", # direct descent
 
-    "t006f01", # complete
-    "t006f02", # complete
-    "t006f03", # complete
-    "t006f04", # complete
-    "t006f05", # complete
-    "t006f06", # complete
-    "t006f07", # complete
+    "t006f01", # DONE
+    "t006f02", # DONE
+    "t006f03", # DONE
+    "t006f04", # DONE
+    "t006f05", # DONE
+    "t006f06", # DONE
+    "t006f07", # DONE
 
-    "t007f00", # complete
-    "t007f01", # complete
-    "t007f02", # complete
-    "t007f03", # complete
-    "t007f04", # complete
-    "t007f05", # complete
-    "t007f06", # complete
+    "t007f00", # DONE
+    "t007f01", # DONE
+    "t007f02", # DONE
+    "t007f03", # DONE
+    "t007f04", # DONE
+    "t007f05", # DONE
+    "t007f06", # DONE
 
-    "t008f00", # complete
-    "t008f01", # complete
-    "t008f02", # complete
-    "t008f03", # complete
-    "t008f04", # complete
-    "t008f05", # complete
-    "t008f06", # complete
+    "t008f00", # DONE
+    "t008f01", # DONE
+    "t008f02", # DONE
+    "t008f03", # DONE
+    "t008f04", # DONE
+    "t008f05", # DONE
+    "t008f06", # DONE
 
-    "t009f00", # complete
-    "t009f01", # complete
-    "t009f02", # complete
-    "t009f03", # complete
-    "t009f04", # complete
-    "t009f05", # complete
-    "t009f06", # complete
+    "t009f00", # DONE
+    "t009f01", # DONE
+    "t009f02", # DONE
+    "t009f03", # DONE
+    "t009f04", # DONE
+    "t009f05", # DONE
+    "t009f06", # DONE
 
-    "t010f00", # complete
-    "t010f01", # complete
-    "t010f02", # complete
-    "t010f03", # complete
-    "t010f04", # complete
+    "t010f00", # DONE
+    "t010f01", # DONE
+    "t010f02", # DONE
+    "t010f03", # DONE
+    "t010f04", # DONE
 
-    "t011f00", # complete
-    "t011f01", # complete
-    "t011f02", # complete
-    "t011f03", # complete
-    "t011f04", # complete
+    "t011f00", # DONE
+    "t011f01", # DONE
+    "t011f02", # DONE
+    "t011f03", # DONE
+    "t011f04", # DONE
 
-    "t012f00", # complete
-    "t012f01", # complete
-    "t012f02", # complete
-    "t012f03", # complete
-    "t012f04", # complete
-    "t012f05", # complete
+    "t012f00", # DONE
+    "t012f01", # DONE
+    "t012f02", # DONE
+    "t012f03", # DONE
+    "t012f04", # DONE
+    "t012f05", # DONE
 
-    "t013f00", # complete
-    "t013f01", # complete
-    "t013f02", # complete
-    "t013f03", # complete
-    "t013f04", # complete
-    "t013f05", # complete
+    "t013f00", # DONE
+    "t013f01", # DONE
+    "t013f02", # DONE
+    "t013f03", # DONE
+    "t013f04", # DONE
+    "t013f05", # DONE
 
-    "t014f00", # complete
-    "t014f01", # complete
-    "t014f02", # complete
-    "t014f03", # complete
-    "t014f04", # complete
-    "t014f05", # complete
+    "t014f00", # DONE
+    "t014f01", # DONE
+    "t014f02", # DONE
+    "t014f03", # DONE
+    "t014f04", # DONE
+    "t014f05", # DONE
 
-    "t015f00", # complete
-    "t015f01", # complete
-    "t015f02", # complete
-    "t015f03", # complete
-    "t015f04", # complete
-    "t015f05", # complete
-    "t015f06", # complete
+    "t015f00", # DONE
+    "t015f01", # DONE
+    "t015f02", # DONE
+    "t015f03", # DONE
+    "t015f04", # DONE
+    "t015f05", # DONE
+    "t015f06", # DONE
 
-    "t016f00", # complete
-    "t016f01", # complete
-    "t016f02", # complete
-    "t016f03", # complete
-    "t016f04", # complete
+    "t016f00", # DONE
+    "t016f01", # DONE
+    "t016f02", # DONE
+    "t016f03", # DONE
+    "t016f04", # DONE
 
-    "t017f00", # complete
-    "t017f01", # complete
-    "t017f02", # complete
-    "t017f03", # complete
-    "t017f04", # complete
-    "t017f05", # complete
-    "t017f06", # complete
+    "t017f00", # DONE
+    "t017f01", # DONE
+    "t017f02", # DONE
+    "t017f03", # DONE
+    "t017f04", # DONE
+    "t017f05", # DONE
+    "t017f06", # DONE
 
-    "t018f00", # complete
-    "t018f00", # complete
+    "t018f00", # DONE
+    "t018f00", # DONE
 
-    "t019f00", # complete
-    "t019f01", # complete
-    "t019f02", # complete
-    "t019f03", # complete
-    "t019f04", # complete
-    "t019f05", # complete
-    "t019f06", # complete
+    "t019f00", # DONE
+    "t019f01", # DONE
+    "t019f02", # DONE
+    "t019f03", # DONE
+    "t019f04", # DONE
+    "t019f05", # DONE
+    "t019f06", # DONE
 
     "t020f00", # DONE
     "t020f01", # DONE
@@ -247,43 +247,43 @@ filenames <- c(
     "t031f05", # DONE
     "t031f06", # DONE
 
-    "t032f00", # no count
-    "t032f01", # no count
-    "t032f02", # no count
-    "t032f03", # no count
-    "t032f04", # no count
-    "t032f05", # no count
-    "t032f06", # no count
-    "t032f07", # no count
+    "t032f00", # DONE
+    "t032f01", # DONE
+    "t032f02", # DONE
+    "t032f03", # DONE
+    "t032f04", # DONE
+    "t032f05", # DONE
+    "t032f06", # DONE
+    "t032f07", # DONE
 
-    "t033f00", # no count
-    "t033f01", # no count
-    "t033f02", # no count
-    "t033f03", # no count
-    "t033f04", # no count
-    "t033f05", # no count
-    "t033f06", # no count
-    "t033f07", # no count
+    "t033f00", # DONE
+    "t033f01", # DONE
+    "t033f02", # DONE
+    "t033f03", # DONE
+    "t033f04", # DONE
+    "t033f05", # DONE
+    "t033f06", # DONE
+    "t033f07", # DONE
 
     # INSPIRE 2
 
-    "t034f00", # no count unknown bird
-    "t034f01", # no count unknown bird
+    "t034f00", # DONE
+    "t034f01", # DONE
 
-    "t035f00", # no count
-    "t035f01", # no count
+    "t035f00", # DONE
+    "t035f01", # DONE
 
-    "t036f00", # no count
-    "t036f01", # no count
+    "t036f00", # DONE
+    "t036f01", # DONE
 
-    "t037f00", # no count
-    "t037f01", # no count
+    "t037f00", # DONE
+    "t037f01", # DONE
 
-    "t038f00", # no count
-    "t038f01", # no count
+    "t038f00", # DONE
+    "t038f01", # DONE
 
-    "t039f00", # no count
-    "t039f01", # no count
+    "t039f00", # DONE
+    "t039f01", # DONE
 
     "t040f00", # DONE
     "t040f01", # DONE
@@ -444,11 +444,11 @@ filenames <- c(
     "t077f03", # DONE
     "t077f04", # DONE
 
-    "t078f01", # completed
-    "t078f02", # completed
-    "t078f03", # completed
-    "t078f04", # completed
-    "t078f05", # completed
+    "t078f01", # DONE
+    "t078f02", # DONE
+    "t078f03", # DONE
+    "t078f04", # DONE
+    "t078f05", # DONE
 
     "t079f01", # completed
     "t079f02", # completed
