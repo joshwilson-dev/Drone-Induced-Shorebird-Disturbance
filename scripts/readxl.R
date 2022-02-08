@@ -450,23 +450,23 @@ filenames <- c(
     "t078f04", # DONE
     "t078f05", # DONE
 
-    "t079f01", # completed
-    "t079f02", # completed
-    "t079f03", # completed
-    "t079f04", # completed
+    "t079f01", # DONE
+    "t079f02", # DONE
+    "t079f03", # DONE
+    "t079f04", # DONE
 
-    "t080f01", # completed
-    "t080f02", # completed
-    "t080f03", # completed
-    "t080f04", # completed
-    "t080f05", # completed
+    "t080f01", # DONE
+    "t080f02", # DONE
+    "t080f03", # DONE
+    "t080f04", # DONE
+    "t080f05", # DONE
 
     "t081f01", # completed
     "t081f02", # completed
     "t081f03", # completed
-    "t081f04", # completed
-    "t081f05", # completed
-    "t081f06", # completed
+    "t081f04", # DONE
+    "t081f05", # DONE
+    "t081f06", # DONE
 
     "t082f01", # completed
     "t082f02", # completed
