@@ -461,53 +461,55 @@ filenames <- c(
     "t080f04", # DONE
     "t080f05", # DONE
 
-    "t081f01", # completed
-    "t081f02", # completed
-    "t081f03", # completed
+# STARTED DOING DIFFERENT RECORD HERE
+
+    "t081f01", # DONE 
+    "t081f02", # DONE
+    "t081f03", # DONE
     "t081f04", # DONE
     "t081f05", # DONE
     "t081f06", # DONE
 
-    "t082f01", # completed
-    "t082f02", # completed
-    "t082f03", # completed
+    "t082f01", # DONE
+    "t082f02", # DONE
+    "t082f03", # DONE
 
-    "t083f01", # completed
+    "t083f01", # DONE
 
-    "t084f01", # completed
+    "t084f01", # DONE
 
-    "t085f01", # completed
+    "t085f01", # DONE
 
-    "t086f01", # no count
+    "t086f01", # DONE
 
-    "t087f01", # no count
-    "t087f02", # no count
+    "t087f01", # DONE
+    "t087f02", # DONE
 
-    "t088f01", # no count
+    "t088f01", # DONE
 
-    "t089f01", # completed
+    "t089f01", # DONE
 
-    "t090f01", # completed
+    "t090f01", # DONE
 
-    "t091f01", # completed revise count
+    "t091f01", # DONE
 
-    "t092f01", # completed revise count
+    "t092f01", # DONE
 
-    "t093f01", # completed
+    "t093f01", # DONE
 
-    "t094f01", # completed
+    "t094f01", # DONE
 
-    "t095f01", # completed
+    "t095f01", # DONE
 
-    "t096f01", # completed
+    "t096f01", # DONE
 
-    "t097f01", # completed
+    "t097f01", # DONE
 
-    "t098f01", # completed
+    "t098f01", # DONE
 
-    "t099f01", # completed
+    "t099f01", # DONE
 
-    # "t100f01", # spibis
+    # "t100f01", # spibis needs weather
 
     # "t101f01", # spibis
 
@@ -541,19 +543,19 @@ filenames <- c(
 
     # "t116f01", # spibis
 
-    "t117f01", # completed
+    "t117f01", # DONE
 
-    "t118f01", # completed
+    "t118f01", # DONE
 
-    "t119f01", # completed
+    "t119f01", # DONE
 
-    "t120f01", # completed
+    "t120f01", # DONE
 
-    "t121f01", # completed
+    "t121f01", # DONE
 
-    "t122f01", # completed
+    "t122f01", # DONE
 
-    "t123f01", # completed
+    "t123f01", # DONE
 
     "t124f01", # completed
 
