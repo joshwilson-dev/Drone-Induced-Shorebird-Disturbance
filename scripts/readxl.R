@@ -628,7 +628,7 @@ filenames <- c(
     "t156f01", # DONE
     "t156f02", # DONE
     "t156f03", # DONE
-    
+
     "t157f01", # DONE
     "t157f02", # DONE
     "t157f03", # DONE
@@ -657,6 +657,8 @@ filenames <- c(
     )
 
 # Import Data
+data_dir <- choose.dir()
+
 importdata <- function(filenames) {
     # imports data from excel worksheet at location of the form:
     for (i in seq_len(length(filenames))) {
@@ -664,11 +666,18 @@ importdata <- function(filenames) {
         test <- substr(filename, 2, 4)
         flight <- substr(filename, 6, 8)
         location <- paste0(
-            "../data/test-",
-            test, "/", flight, "/", filename, ".xlsx")
+            data_dir,
+            "/test-",
+            test,
+            "/",
+            flight,
+            "/",
+            filename,
+            ".xlsx")
         assign(
             filename,
             read_excel(location, col_types = "text"), envir = .GlobalEnv)
+        print(paste0("Assigned: ", location))
     }
 }
     
@@ -681,5 +690,5 @@ data <- bind_rows(mget(filenames))
 # Save Data
 write.csv(
     data,
-    "../data/shorebird-disturbance.csv",
+    "./data/shorebird-disturbance.csv",
     row.names = FALSE)
