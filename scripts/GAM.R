@@ -55,24 +55,32 @@ data_aug <- data %>%
     mutate(flightcode = paste0(as.character(test), as.character(flight))) %>%
     # group by flight code
     group_by(flightcode) %>%
-    # add a column with distance between drone and birds
-    mutate(
-        dronebirddistance = 6371009 * sqrt(((pi / 180) *
-        (`bird lat` - latitude))^2 +
-        ((cos((pi / 180) * (`bird lat` + latitude) / 2) * (pi / 180) *
-        (`bird long` - longitude))) ^ 2)) %>%
     # add column for eastern curlew presence
     mutate(
         `eastern.curlew.presence` =
-        as.factor(case_when((is.na(`eastern curlew behaviour`)) ~ FALSE,
-        (TRUE ~ TRUE)))) %>%
+        as.factor(case_when(
+            (is.na(`numenius madagascariensis behaviour`)) ~ FALSE,
+            (TRUE ~ TRUE)))) %>%
     # pivot long so that each species is on a different row
       pivot_longer(
-          cols = ends_with("behaviour") | ends_with("count"),
+          cols =
+          ends_with("behaviour") |
+          ends_with("count") |
+          ends_with("lat") |
+          ends_with("long") |
+          ends_with("notes"),
           names_to = c("species", ".value"),
           names_pattern = "(.+) (.+)",
           names_transform = list(species = as.factor),
           values_drop_na = TRUE) %>%
+    # drop species bird
+    filter(species != "bird") %>%
+    # add a column with distance between drone and birds
+    mutate(
+        drone_bird_distance = 6371009 * sqrt(((pi / 180) *
+        (lat - latitude))^2 +
+        ((cos((pi / 180) * (lat + latitude) / 2) * (pi / 180) *
+        (long - longitude))) ^ 2)) %>%
     # convert behaviour to binary
     mutate(
         behaviour =
@@ -93,6 +101,74 @@ data_aug <- data %>%
     slice(1) %>%
     # make column names correct format for gam
     rename_all(make.names)
+
+#### Ethics Analysis ####
+
+# number of approaches
+approaches <- data_aug %>%
+    # flights not in 2021
+    filter(datetime_aest > as.Date("2021-01-01")) %>%
+    filter(datetime_aest < as.Date("2022-01-01")) %>%
+    # remove flights where birds took off in control
+    filter(approach.type != "control") %>%
+    # group by flight
+    group_by(flightcode) %>%
+    # take first entry
+    slice(1)
+
+# number of disturbances
+disturbance_approaches <- data_aug %>%
+    # flights not in 2021
+    filter(datetime_aest > as.Date("2021-01-01")) %>%
+    filter(datetime_aest < as.Date("2022-01-01")) %>%
+    # only keep flights where drone was approaching
+    filter(
+        approach.type == "ascending" |
+        approach.type == "advancing") %>%
+    # filter for birds fligt
+    filter(behaviour == 2) %>%
+    # remove disturbances from alternate sources
+    mutate(notes = case_when(
+        notes == "alternate disturbance" ~ 1,
+        TRUE ~ 2)) %>%
+    filter(notes == 2) %>%
+    # group by flight
+    group_by(flightcode) %>%
+    # take first entry
+    slice(1)
+
+# total birds disturbed
+birds_disturbed <- data_aug  %>%
+    # filter for birds flight
+    filter(behaviour == 2) %>%
+    # group each species for each flight
+    group_by(flightcode, species) %>%
+    # take first entry
+    slice(1) %>%
+    # only keep flights where drone was approaching
+    filter(
+        approach.type == "ascending" |
+        approach.type == "advancing") %>%
+    # remove disturbances from alternate sources
+    mutate(notes = case_when(
+        notes == "alternate disturbance" ~ 1,
+        TRUE ~ 2)) %>%
+    filter(notes == 2) %>%
+    # flights not in 2021
+    filter(datetime_aest > as.Date("2021-01-01")) %>%
+    filter(datetime_aest < as.Date("2022-01-01")) %>%
+    # summarise
+    group_by(species) %>%
+    summarise(sum = sum(count))
+(sum(birds_disturbed$sum) - 4000)
+
+# species
+species <- data_aug %>%
+    # filter out species without enough data
+    group_by(species) %>%
+    filter(n() > 5) %>%
+    # take first entry to get unique species
+    slice(1)
 
 #### fia analysis ####
 data_fia <- data_aug %>%
