@@ -27,9 +27,55 @@ library(lubridate)
 rm(list = ls())
 
 # Import Data
-data <- read_csv("data/shorebird-disturbance.csv", guess_max = 1000000)
+data <- read_csv(choose.files(), guess_max = 1000000)
 
 #### general data augmentation ####
+
+# scientific to common names
+sci_com <- data.frame(
+    species = c(
+        "ardea intermedia",
+        "calidris tenuirostris",
+        "chroicocephalus novaehollandiae",
+        "cygnus atratus",
+        "egretta garzetta",
+        "egretta novaehollandiae",
+        "gelochelidon nilotica",
+        "haematopus longirostris",
+        "himantopus leucocephalus",
+        "hydroprogne caspia",
+        "limosa lapponica",
+        "numenius madagascariensis",
+        "numenius phaeopus",
+        "pelecanus conspicillatus",
+        "platalea regia",
+        "threskiornis molucca",
+        "tringa brevipes",
+        "tringa stagnatilis",
+        "vanellus miles",
+        "xenus cinereus"),
+    common_name = c(
+        "intermediate egret",
+        "great knot",
+        "silver gull",
+        "black swan",
+        "little egret",
+        "white-faced heron",
+        "gull-billed tern",
+        "pied oystercatcher",
+        "pied stilt",
+        "caspian tern",
+        "bar-tailed godwit",
+        "eastern curlew",
+        "whimbrel",
+        "australian pelican",
+        "royal spoonbill",
+        "australian white ibis",
+        "grey-tailed tattler",
+        "marsh sandpiper",
+        "masked lapwing",
+        "terek sandpiper"))
+
 data_aug <- data %>%
     # add datetime in aest
     mutate(
