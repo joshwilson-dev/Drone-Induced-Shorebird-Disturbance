@@ -119,6 +119,8 @@ data_aug <- data %>%
           names_pattern = "(.+) (.+)",
           names_transform = list(species = as.factor),
           values_drop_na = TRUE) %>%
+    # add common name
+    merge(., sci_com, all.x = TRUE) %>%
     # drop species bird
     filter(species != "bird") %>%
     # add a column with distance between drone and birds
