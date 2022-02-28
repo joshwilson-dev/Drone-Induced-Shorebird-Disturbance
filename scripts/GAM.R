@@ -144,7 +144,7 @@ data_aug <- data %>%
             behaviour,
             levels = c(0, 1, 2, 3),
             ordered = TRUE)) %>%
-    group_by(flightcode, species, behaviour, `approach type`) %>%
+    group_by(flightcode, species, `approach type`) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
     # make column names correct format for gam
