@@ -155,14 +155,15 @@ data_fia <- data_aug %>%
     # keep only flights where the drone was advancing
     filter(approach.type == "advancing") %>%
     # drop the landed behaviour state
-    filter(behaviour != 2) %>%
+    filter(behaviour != 3) %>%
     # keep only the maximum behaviour state
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(flightcode, species) %>%
     filter(behaviour == max(behaviour)) %>%
     # filter out species without enough data
     group_by(species) %>%
-    filter(n() > 25)
+    filter(n() > 25) %>%
+    filter(drone != "inspire 2", drone != "phatom 4 pro")
 
 # fit GAM
 # Question: at what altitude does flight not occur?
@@ -193,15 +194,13 @@ gam_fia <- gam(
     behaviour
     ~ species +
     s(height_above_takeoff.meters.) +
-    eastern.curlew.presence +
-    lifestage,
+    eastern.curlew.presence,
     data = data_fia,
     family = "binomial",
     method = "REML",
     select = T)
 summary(gam_fia)
-windows()
-visreg(gam_fia)
+
 # Creating new data
 
 altitude_fia <- seq(0, 120, by = 1)
