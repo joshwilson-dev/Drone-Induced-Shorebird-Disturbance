@@ -30,73 +30,7 @@ rm(list = ls())
 data <- read_csv(choose.files(), guess_max = 1000000)
 
 #### general data augmentation ####
-
-# scientific to common names
-sci_com <- data.frame(
-    species = c(
-        "ardea intermedia",
-        "calidris tenuirostris",
-        "chroicocephalus novaehollandiae",
-        "cygnus atratus",
-        "egretta garzetta",
-        "egretta novaehollandiae",
-        "gelochelidon nilotica",
-        "haematopus longirostris",
-        "himantopus leucocephalus",
-        "hydroprogne caspia",
-        "limosa lapponica",
-        "numenius madagascariensis",
-        "numenius phaeopus",
-        "pelecanus conspicillatus",
-        "platalea regia",
-        "threskiornis molucca",
-        "tringa brevipes",
-        "tringa stagnatilis",
-        "vanellus miles",
-        "xenus cinereus"),
-    common_name = c(
-        "intermediate egret",
-        "great knot",
-        "silver gull",
-        "black swan",
-        "little egret",
-        "white-faced heron",
-        "gull-billed tern",
-        "pied oystercatcher",
-        "pied stilt",
-        "caspian tern",
-        "bar-tailed godwit",
-        "eastern curlew",
-        "whimbrel",
-        "australian pelican",
-        "royal spoonbill",
-        "australian white ibis",
-        "grey-tailed tattler",
-        "marsh sandpiper",
-        "masked lapwing",
-        "terek sandpiper"))
-
 data_aug <- data %>%
-    # add datetime in aest
-    mutate(
-        datetime_aest =
-        as_datetime(
-            `datetime(utc)` * 60 * 60 * 24,
-            origin = "1899/12/30 0:00:00",
-            tz = "australia/queensland")) %>%
-    # add month integer
-    mutate(month = month(datetime_aest)) %>%
-    # add life stage
-    mutate(
-        lifestage =
-        as.factor(
-            case_when(
-                month < 3 | month > 10 ~ "nonbreeding",
-                month > 3 & month < 6 ~ "northwardmigration",
-                month > 6 & month < 9 ~ "breeding",
-                month > 8 & month < 12 ~ "southwardmigration")
-                )
-     ) %>%
     # add flightcode to group by
     mutate(flightcode = paste0(as.character(test), as.character(flight))) %>%
     # group by flight code
@@ -119,8 +53,6 @@ data_aug <- data %>%
           names_pattern = "(.+) (.+)",
           names_transform = list(species = as.factor),
           values_drop_na = TRUE) %>%
-    # add common name
-    merge(., sci_com, all.x = TRUE) %>%
     # drop species bird
     filter(species != "bird") %>%
     # add a column with distance between drone and birds
@@ -129,37 +61,39 @@ data_aug <- data %>%
         (lat - latitude))^2 +
         ((cos((pi / 180) * (lat + latitude) / 2) * (pi / 180) *
         (long - longitude))) ^ 2)) %>%
-    # convert behaviour to binary
+    # change landed behaviour to flight & convert behaviour to binary
     mutate(
         behaviour =
         case_when(
-            behaviour == "nominal" ~ 1,
-            behaviour == "flight" ~ 2,
-            behaviour == "landed" ~ 3,
-            TRUE ~ 0)) %>%
-    # degrade data into first instance of maximum behaviour per approach type
+            behaviour == "nominal" ~ 0,
+            behaviour == "flight" ~ 1,
+            behaviour == "landed" ~ 1,
+            TRUE ~ 2)) %>%
+    # drop other behaviour
+    filter(behaviour != 2) %>%
+    # get rid of returning approah type
     mutate(
-        behaviour =
-        factor(
-            behaviour,
-            levels = c(0, 1, 2, 3),
-            ordered = TRUE)) %>%
+    `approach type` =
+    case_when(
+        `approach type` == "returning" ~ "advancing",
+        TRUE ~ `approach type`)) %>%
+    # degrade data into first instance of maximum behaviour per approach type
+    mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
+    # drop approaches where I didn't get within 40m of the birds
+    filter(behaviour == 1 | drone_bird_distance <= 40) %>%
     group_by(flightcode, species, `approach type`) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
+    # drop unused levels
+    droplevels() %>%
     # make column names correct format for gam
-    rename_all(make.names)
+    rename_all(make.names) %>%
+    mutate(flightcode = as.factor(flightcode))
 
 #### fia analysis ####
 data_fia <- data_aug %>%
     # keep only flights where the drone was advancing
     filter(approach.type == "advancing") %>%
-    # drop the landed behaviour state
-    filter(behaviour != 3) %>%
-    # keep only the maximum behaviour state
-    mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
-    group_by(flightcode, species) %>%
-    filter(behaviour == max(behaviour)) %>%
     # filter out species without enough data
     group_by(species) %>%
     filter(n() > 25) %>%
@@ -194,7 +128,8 @@ gam_fia <- gam(
     behaviour
     ~ species +
     s(height_above_takeoff.meters.) +
-    eastern.curlew.presence,
+    eastern.curlew.presence +
+    s(flightcode, bs = "re"),
     data = data_fia,
     family = "binomial",
     method = "REML",
@@ -206,12 +141,14 @@ summary(gam_fia)
 altitude_fia <- seq(0, 120, by = 1)
 species_fia <- unique(data_fia$species)
 eastern_curlew_prescence_fia <- unique(data_fia$eastern.curlew.presence)
+# flightcode_fia <- unique(data_fia$flightcode)
+flightcode_fia <- c(275)
 
 new_data_fia <- expand.grid(
     height_above_takeoff.meters. = altitude_fia,
     species = species_fia,
     eastern.curlew.presence = eastern_curlew_prescence_fia,
-    month = month_fia)
+    flightcode = flightcode_fia)
 
 pred_fia <- predict.gam(gam_fia,
                     new_data_fia,
@@ -229,7 +166,7 @@ results_fia <- new_data_fia %>%
 ggplot() +
     theme_set(theme_bw()) +
     geom_line(
-        data = filter(results_fia, eastern.curlew.presence == FALSE),
+        data = filter(results_fia, eastern.curlew.presence == TRUE),
         aes(
             height_above_takeoff.meters.,
             prediction,
@@ -237,7 +174,7 @@ ggplot() +
             colour = species),
         size = 1.2) +
     geom_ribbon(
-        data = filter(results_fia, eastern.curlew.presence == FALSE),
+        data = filter(results_fia, eastern.curlew.presence == TRUE),
         aes(
             height_above_takeoff.meters.,
             ymin = lower,
@@ -271,7 +208,8 @@ ggplot() +
         axis.title = element_text(size = 14, face = "bold"),
         plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
         legend.position = "none",
-        strip.text.x = element_text(size = 10, face = "bold"))
+        strip.text.x = element_text(size = 10, face = "bold")) +
+    ylim(0,1)
 
 # species sensitivity vs eastern curlew presence
 ggplot() +
