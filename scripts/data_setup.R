@@ -81,6 +81,18 @@ sci_com <- data.frame(
         "masked lapwing",
         "terek sandpiper"))
 
+gps_loc <- data.frame(
+    lat_round = c(-27.05, -27.48, -27.48, -27.49, -27.48, -27.54),
+    long_round = c(153.11, 153.20, 153.21, 153.24, 153.24, 153.28),
+    location = c(
+        "toorbul",
+        "queens esplanade",
+        "queens esplanade",
+        "geoff skinner",
+        "geoff skinner",
+        "oyster point")
+)
+
 data_aug <- data %>%
     mutate(
         # calculate drone acceleration
@@ -94,7 +106,7 @@ data_aug <- data %>%
         y_vel_ms = `ySpeed(m/s)`,
         xy_vel_ms = `speed(m/s)`,
         # rename drone displacement
-        z_disp_m = `height_above_takeoff(meters)`,,
+        z_disp_m = `height_above_takeoff(meters)`,
         # rename drone heading
         heading_d = `compass_heading(degrees)`,
         # rename drone altitude
@@ -114,17 +126,19 @@ data_aug <- data %>%
         datetime_aest = (
             as_datetime(
                 `datetime(utc)` * 60 * 60 * 24,
-                origin = "1899/12/30 0:00:00",
+                origin = "1899/12/30 0:00:00.00",
                 tz = "australia/queensland")),
         # add month integer
-        month = month(datetime_aest),
+        month_aest = month(datetime_aest),
+        # add date
+        date_aest = as.Date(datetime_aest),
         # add life stage
         lifestage = (
             case_when(
-                month < 3 | month > 10 ~ "nonbreeding",
-                month > 3 & month < 6 ~ "northwardmigration",
-                month > 6 & month < 9 ~ "breeding",
-                month > 8 & month < 12 ~ "southwardmigration")),
+                month_aest < 3 | month_aest > 10 ~ "nonbreeding",
+                month_aest > 3 & month_aest < 6 ~ "northwardmigration",
+                month_aest > 6 & month_aest < 9 ~ "breeding",
+                month_aest > 8 & month_aest < 12 ~ "southwardmigration")),
         # rename tide height
         tide_height_m = `tide height (m)`,
         # rename video time
@@ -134,7 +148,7 @@ data_aug <- data %>%
         # rename temperature
         temperature_dc = `temperature (degrees celcius)`,
         # rename cloud cover
-        could_cover_p = `cloud cover (%)`,
+        cloud_cover_p = `cloud cover (%)`,
         # rename wind speed
         wind_speed_ms = `wind speed (m/s)`,
         # rename wind direction
@@ -164,25 +178,51 @@ data_aug <- data %>%
         # add in distance between drone and birds
         xy_disp_m = (
             6371009 * sqrt(((pi / 180) *
-            (lat - latitude))^2 +
-            ((cos((pi / 180) * (lat + latitude) / 2) * (pi / 180) *
-            (long - longitude))) ^ 2))) %>%
+            (lat - drone_latitude_d))^2 +
+            ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
+            (long - drone_longitude_d))) ^ 2)),
+        # round latitude and longitude for location
+        lat_round = round(lat, 2),
+        long_round = round(long, 2),
+        # add in bearing between drone and birds
+        bearing  = (
+            (180 / pi) * atan2(
+                cos((pi / 180) * drone_latitude_d) *
+                sin((pi / 180) * (drone_longitude_d - long)),
+                cos((pi / 180) * lat) *
+                sin((pi / 180) * drone_latitude_d) -
+                sin((pi / 180) * lat) *
+                cos((pi / 180) * drone_latitude_d) *
+                cos((pi / 180) * (drone_longitude_d - long)))),
+        # add in relative wind direction
+        rel_wind_dir_d = (
+            abs(
+                abs(bearing - wind_dir_d) -
+                360 * abs(round((bearing - wind_dir_d) / 360))))) %>%
+    # add location
+    merge(., gps_loc, all.x = TRUE) %>%
+    # add flock
+    group_by(date_aest, location) %>%
+    mutate(flock_number = cur_group_id()) %>%
+    # ungroup
+    group_by() %>%
     # drop unused columns
     select(
         test,
         flight,
+        flock_number,
+        datetime_aest,
+        location,
         video_time_s,
         tide_height_m,
         tide_type,
         temperature_dc,
-        could_cover_p,
+        cloud_cover_p,
         wind_speed_ms,
         wind_dir_d,
+        rel_wind_dir_d,
         drone,
         approach_type,
-        datetime_aest,
-        latitude,
-        longitude,
         species,
         common_name,
         behaviour,
@@ -199,12 +239,13 @@ data_aug <- data %>%
         y_vel_ms,
         xy_vel_ms,
         z_disp_m,
+        xy_disp_m,
         heading_d,
         drone_latitude_d,
         drone_longitude_d,
         eastern_curlew_abundance,
         eastern_curlew_presence,
-        month,
+        month_aest,
         lifestage)
 
 ##################

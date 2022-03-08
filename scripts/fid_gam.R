@@ -1,30 +1,71 @@
-#### fid analysis ####
+################
+#### Header ####
+################
 
-# degrade data to one entry column and filter for just mavic 2 pro disturbance
-data_fid <- data_aug %>%
+# Title: Shorebird Disturbance Analysis: FID
+# Author: Josh Wilson
+# Date: 08-08-2021
 
-    # only retain disturbance manoeuvre flights
-    filter(approach.type == "advancing") %>%
+###############
+#### Setup ####
+###############
 
-    # remove species without enough data
-    filter(species == "eastern curlew") %>%
+# Install Packages
+packages <- c("tidyverse", "mgcv", "visreg")
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
-    # remove all except alarm and flight
+if (length(new_packages)) {
+    package_consent <- readline(
+        prompt <- (paste("Install", new_packages, " y/n?\n")))
+    if (tolower(package_consent) == "y") {
+        install.packages(new_packages)
+        }
+    else print(paste("This code cannot be run without", new_packages))
+}
+
+# Import Packages
+lapply(packages, require, character.only = TRUE)
+
+# Clear Environment
+rm(list = ls())
+
+# Import Data
+data_clean <- read_csv(choose.files(), guess_max = 1000000)
+
+##########################
+#### Data Preparation ####
+##########################
+
+data_fid <- data_clean %>%
+    # keep only first instance of flight for each approach and species
     filter(behaviour == 1) %>%
+    group_by(test, flight, species) %>%
+    slice(1)
 
-    #remove all drones except mavic 2 pro
-    filter(drone == "mavic 2 pro")
-
-# fit GAM
+#################
+#### Fit gam ####
+#################
 
 # Main Effects
-# Question: What is the flight initiation distance for eastern curlew?
+
+# species:
+# does the fid vary with species
+
+# altitude:
+# does the fid vary with altitude?
 
 # drone:
 # does the fid vary with drone type?
 
-# altitude:
-# does the fid vary with drone altitude?
+# approach type:
+# does the fid vary with approach type?
+
+# Random Effects:
+
+# flock number
+# each flock is a random sample of the total bird population
+
+# Interactions:
 
 gam_fid <- gam(
     dronebirddistance ~
@@ -34,6 +75,10 @@ gam_fid <- gam(
     method = "REML")
 
 summary(gam_fid)
+
+###########################
+#### Creating New Data ####
+###########################
 
 # Creating new data
 
@@ -48,18 +93,20 @@ pred_fid <- predict.gam(
     type = "response",
     se.fit = TRUE)
 
-fid_results <- new_data_fid %>%
+results_fid <- new_data_fid %>%
     mutate(prediction = pred_fid$fit) %>%
     mutate(upper = pred_fid$fit + (2 * pred_fid$se.fit)) %>%
     mutate(lower = pred_fid$fit - (2 * pred_fid$se.fit))
 
-# Visualising Results
+#############################
+#### Visualising Results ####
+#############################
 
 # effect of altitude for mavic 2 data
 ggplot() +
     theme_set(theme_bw()) +
     geom_ribbon(
-        data = fid_results,
+        data = results_fid,
         aes(
             height_above_takeoff.meters.,
             ymin = lower,
@@ -68,7 +115,7 @@ ggplot() +
             fill = "orange"),
         alpha = 0.1) +
     geom_line(
-        data = fid_results,
+        data = results_fid,
         aes(
             height_above_takeoff.meters.,
             prediction,

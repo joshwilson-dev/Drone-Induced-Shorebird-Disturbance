@@ -1,10 +1,18 @@
-# Merging Shorebird Disturbance Data
-  # Josh Wilson
-    # 01-09-2021
+################
+#### Header ####
+################
 
+# Title: Merging Shorebird Disturbance Data
+# Author: Josh Wilson
+# Date: 01-09-2021
+
+
+###############
 #### Setup ####
+###############
+
 # Install Packages
-packages <- c("tidyverse")
+packages <- c("tidyverse", "readxl")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -17,13 +25,15 @@ if (length(new_packages)) {
 }
   
 # Import Packages
-library(tidyverse)
-library(readxl)
+lapply(packages, require, character.only = TRUE)
   
 # Clear Environment
 rm(list = ls())
 
+#####################
 #### import data ####
+#####################
+
 # Data to Import
 filenames <- c(
     # PHANTOM 4 PRO
@@ -682,13 +692,16 @@ importdata <- function(filenames) {
 }
     
 importdata(filenames)
-    
+
+########################
 #### Merge and Save ####
+########################
+
 # Merge Data
 data <- bind_rows(mget(filenames))
-    
+
 # Save Data
 write.csv(
     data,
-    "./data/shorebird-disturbance.csv",
+    paste0(data_dir, "/shorebird-disturbance.csv"),
     row.names = FALSE)
