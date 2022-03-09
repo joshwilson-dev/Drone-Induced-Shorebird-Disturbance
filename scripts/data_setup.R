@@ -132,13 +132,11 @@ data_aug <- data %>%
         month_aest = month(datetime_aest),
         # add date
         date_aest = as.Date(datetime_aest),
-        # add life stage
-        lifestage = (
+        # add migration prep
+        migration_prep = (
             case_when(
-                month_aest < 3 | month_aest > 10 ~ "nonbreeding",
-                month_aest > 3 & month_aest < 6 ~ "northwardmigration",
-                month_aest > 6 & month_aest < 9 ~ "breeding",
-                month_aest > 8 & month_aest < 12 ~ "southwardmigration")),
+                month_aest > 2 | month_aest < 6 ~ "yes",
+                TRUE ~ "no")),
         # rename tide height
         tide_height_m = `tide height (m)`,
         # rename video time
@@ -246,7 +244,7 @@ data_aug <- data %>%
         eastern_curlew_abundance,
         eastern_curlew_presence,
         month_aest,
-        lifestage)
+        migration_prep)
 
 ##################
 #### Save CSV ####

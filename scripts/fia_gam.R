@@ -39,19 +39,18 @@ data_clean <- read_csv(choose.files(), guess_max = 1000000)
 data_fia <- data_clean %>%
     # keep only flights where the drone was advancing
     filter(approach_type == "advancing") %>%
-    # keep only flights where the bird flew, or we got within 20m
+    # keep only flights where the birds flew, or we got within 20m
     filter(behaviour == 1 | xy_disp_m <= 20) %>%
     # degrade data into first instance of maximum behaviour per approach type
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(test, flight, species) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
+    # drop drone without enough data to converge
     filter(drone != "inspire 2") %>%
     # drop species without enough data to converge
     group_by(species) %>%
     filter(n() > 3) %>%
-    # filter mistakes
-    filter(tide_type != "receding") %>%
     # refactor
     mutate(
     species = factor(species),
@@ -59,7 +58,7 @@ data_fia <- data_clean %>%
     flock_number = factor(flock_number),
     location = factor(location),
     tide_type = factor(tide_type),
-    lifestage = factor(lifestage))
+    migration_prep = factor(migration_prep))
 summary(data_fia)
 
 #################
@@ -98,18 +97,18 @@ gam_fia <- gam(
     common_name +
     drone +
     # s(eastern_curlew_abundance) +
-    # lifestage +
-    # s(count) +
+    s(count) +
     s(z_disp_m) +
     eastern_curlew_presence +
-    s(month_aest, bs = "cc", k = 5) +
-    # s(tide_height_m, bs = "cc") +
-    # tide_type +
-    # s(temperature_dc) +
+    # s(month_aest, bs = "cc", k = 7) +
+    migration_prep +
+    s(tide_height_m, bs = "cc") +
+    tide_type +
+    s(temperature_dc) +
     s(wind_speed_ms) +
-    # s(rel_wind_dir_d) +
+    s(rel_wind_dir_d) +
     s(cloud_cover_p) +
-    # s(location, bs = "re") +
+    s(location, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fia,
     family = "binomial",
@@ -212,8 +211,8 @@ ggplot() +
     labs(
         x = "Drone Altitude Above Birds (m)",
         y = "Probability of Inducing Bird Flight",
-        fill = "Eastern Curlew Precense",
-        colour = "Eastern Curlew Precense") +
+        fill = "Eastern Curlew Presence",
+        colour = "Eastern Curlew Presence") +
     theme(
         axis.text = element_text(face = "bold", color = "black"),
         axis.title = element_text(size = 14, face = "bold"),

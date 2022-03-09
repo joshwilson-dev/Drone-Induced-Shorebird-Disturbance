@@ -10,6 +10,9 @@
 #### Setup ####
 ###############
 
+# Clear Environment
+rm(list = ls())
+
 # Install Packages
 packages <- c("tidyverse", "mgcv", "visreg")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
@@ -26,11 +29,9 @@ if (length(new_packages)) {
 # Import Packages
 lapply(packages, require, character.only = TRUE)
 
-# Clear Environment
-rm(list = ls())
-
 # Import Data
 data_clean <- read_csv(choose.files(), guess_max = 1000000)
+data_clean_head <- head(data_clean)
 
 ##########################
 #### Data Preparation ####
@@ -40,8 +41,19 @@ data_fid <- data_clean %>%
     # keep only first instance of flight for each approach and species
     filter(behaviour == 1) %>%
     group_by(test, flight, species) %>%
-    slice(1)
-
+    slice(1) %>%
+    # filter(drone != "inspire 2") %>%
+    # drop species without enough data to converge
+    group_by(species) %>%
+    filter(n() > 3) %>%
+    # refactor
+    mutate(
+    species = factor(species),
+    drone = factor(drone),
+    flock_number = factor(flock_number),
+    location = factor(location),
+    tide_type = factor(tide_type))
+summary(data_fid)
 #################
 #### Fit gam ####
 #################
@@ -68,13 +80,30 @@ data_fid <- data_clean %>%
 # Interactions:
 
 gam_fid <- gam(
-    dronebirddistance ~
-    s(height_above_takeoff.meters.),
+    xy_disp_m ~
+    common_name +
+    drone +
+    s(count) +
+    s(z_disp_m) +
+    eastern_curlew_presence +
+    # s(eastern_curlew_abundance) +
+    s(month_aest, bs = "cc", k = 5) +
+    s(tide_height_m, bs = "cc") +
+    tide_type +
+    s(temperature_dc) +
+    s(wind_speed_ms) +
+    s(rel_wind_dir_d) +
+    s(cloud_cover_p) +
+    s(location, bs = "re") +
+    s(flock_number, bs = "re"),
     data = data_fid,
     family = "gaussian",
-    method = "REML")
+    method = "REML",
+    select = T)
 
 summary(gam_fid)
+windows()
+visreg(gam_fid)
 
 ###########################
 #### Creating New Data ####
