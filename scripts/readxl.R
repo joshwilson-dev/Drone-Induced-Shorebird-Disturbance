@@ -1,10 +1,18 @@
-# Merging Shorebird Disturbance Data
-  # Josh Wilson
-    # 01-09-2021
+################
+#### Header ####
+################
 
+# Title: Merging Shorebird Disturbance Data
+# Author: Josh Wilson
+# Date: 01-09-2021
+
+
+###############
 #### Setup ####
+###############
+
 # Install Packages
-packages <- c("tidyverse")
+packages <- c("tidyverse", "readxl")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -17,13 +25,15 @@ if (length(new_packages)) {
 }
   
 # Import Packages
-library(tidyverse)
-library(readxl)
+lapply(packages, require, character.only = TRUE)
   
 # Clear Environment
 rm(list = ls())
 
+#####################
 #### import data ####
+#####################
+
 # Data to Import
 filenames <- c(
     # PHANTOM 4 PRO
@@ -461,8 +471,6 @@ filenames <- c(
     "t080f04", # DONE
     "t080f05", # DONE
 
-# STARTED DOING DIFFERENT RECORD HERE
-
     "t081f01", # DONE 
     "t081f02", # DONE
     "t081f03", # DONE
@@ -539,9 +547,9 @@ filenames <- c(
 
     # "t114f01", # spibis
 
-    # "t115f01", # spibis
+    "t115f01", # DONE
 
-    # "t116f01", # spibis
+    "t116f01", # DONE
 
     "t117f01", # DONE
 
@@ -633,25 +641,25 @@ filenames <- c(
     "t157f02", # DONE
     "t157f03", # DONE
 
-    # "t158f01", # not sure if right log
+    "t158f01", # DONE
 
-    # "t159f01", # not sure if right log
+    # "t159f01", # Might not be right log.
 
-    # "t160f01",
+    "t160f01", # DONE
 
-    # "t161f01",
+    # "t161f01", # NEED FLIGHT
 
-    # "t162f01",
+    # "t162f01", # NEED FLIGHT
 
-    # "t163f01",
+    "t163f01", # DONE
 
-    # "t164f01",
+    "t164f01", # DONE
 
-    # "t165f01",
+    "t165f01", # DONE
 
-    # "t166f01",
+    "t166f01", # DONE
 
-    # "t167f01",
+    "t167f01", # DONE
 
     "t168f01" # DONE
     )
@@ -682,13 +690,16 @@ importdata <- function(filenames) {
 }
     
 importdata(filenames)
-    
+
+########################
 #### Merge and Save ####
+########################
+
 # Merge Data
 data <- bind_rows(mget(filenames))
-    
+
 # Save Data
 write.csv(
     data,
-    "./data/shorebird-disturbance.csv",
+    "shorebird-disturbance.csv",
     row.names = FALSE)
