@@ -535,15 +535,15 @@ filenames <- c(
 
     "t108f01", # DONE
 
-    # "t109f01", # low tide
+    "t109f01", # DONE
 
-    # "t110f01", # low tide
+    "t110f01", # DONE
 
-    # "t111f01", # low tide
+    "t111f01", # DONE
 
-    # "t112f01", # low tide
+    "t112f01", # DONE
 
-    # "t113f01", # low tide
+    "t113f01", # DONE
 
     "t114f01", # DONE
 
@@ -643,8 +643,7 @@ filenames <- c(
 
     "t158f01", # DONE
 
-    # "t159f01", # Might not be right log.
-
+    "t159f01", # DONE
     "t160f01", # DONE
 
     "t161f01", # DONE
