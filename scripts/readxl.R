@@ -525,15 +525,15 @@ filenames <- c(
 
     "t103f01", # DONE
 
-    # "t104f01", # low tide
+    "t104f01", # DONE
 
-    # "t105f01", # low tide
+    "t105f01", # DONE
 
-    # "t106f01", # low tide
+    "t106f01", # DONE
 
-    # "t107f01", # low tide
+    "t107f01", # DONE
 
-    # "t108f01", # low tide
+    "t108f01", # DONE
 
     # "t109f01", # low tide
 
