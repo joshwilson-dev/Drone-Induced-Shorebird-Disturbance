@@ -523,7 +523,7 @@ filenames <- c(
 
     "t102f01", # DONE
 
-    # "t103f01", # spibis
+    "t103f01", # DONE
 
     # "t104f01", # low tide
 
