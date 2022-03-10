@@ -471,7 +471,7 @@ filenames <- c(
     "t080f04", # DONE
     "t080f05", # DONE
 
-    "t081f01", # DONE 
+    "t081f01", # DONE
     "t081f02", # DONE
     "t081f03", # DONE
     "t081f04", # DONE
@@ -517,11 +517,11 @@ filenames <- c(
 
     "t099f01", # DONE
 
-    # "t100f01", # spibis needs weather
+    "t100f01", # DONE
 
-    # "t101f01", # spibis
+    # "t101f01", # DRONE FAULT
 
-    # "t102f01", # spibis
+    "t102f01", # DONE
 
     # "t103f01", # spibis
 
@@ -545,7 +545,7 @@ filenames <- c(
 
     # "t113f01", # low tide
 
-    # "t114f01", # spibis
+    "t114f01", # DONE
 
     "t115f01", # DONE
 
@@ -647,9 +647,9 @@ filenames <- c(
 
     "t160f01", # DONE
 
-    # "t161f01", # NEED FLIGHT
+    "t161f01", # DONE
 
-    # "t162f01", # NEED FLIGHT
+    "t162f01", # DONE
 
     "t163f01", # DONE
 
