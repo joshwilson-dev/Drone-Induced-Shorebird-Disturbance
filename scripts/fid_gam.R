@@ -41,6 +41,8 @@ data_fid <- data_clean %>%
     filter(behaviour == 1) %>%
     group_by(test, flight, species) %>%
     slice(1) %>%
+    # drop data where alternate disturbance occured
+    filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # drop low tide data as it is innaccurate
     filter(
         notes !=

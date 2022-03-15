@@ -31,7 +31,6 @@ lapply(packages, require, character.only = TRUE)
 
 # Import Data
 data_clean <- read_csv(choose.files(), guess_max = 1000000)
-data_clean_head <- head(data_clean)
 
 ##########################
 #### Data Preparation ####
@@ -39,20 +38,26 @@ data_clean_head <- head(data_clean)
 
 data_fit <- data_clean %>%
     # keep only flights where the drone was ascending
-    filter(approach.type == "ascending") %>%
+    filter(approach_type == "ascending") %>%
     # degrade data into first instance of maximum behaviour per approach type
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(test, flight, species) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
+    # drop data where alternate disturbance occured
+    filter(notes != "alternate disturbance" | is.na(notes)) %>%
+    # drop species without enough data to converge
+    group_by(species) %>%
+    filter(n() > 3) %>%
+    # mistakes
+    filter(drone != "phantom pro 4") %>%
+    filter(!is.na(count)) %>%
     # refactor
     mutate(
     species = factor(species),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location),
-    tide_type = factor(tide_type),
-    lifestage = factor(lifestage))
+    location = factor(location))
 summary(data_fit)
 
 #################
@@ -75,18 +80,17 @@ gam_fit <- gam(
     behaviour ~
     common_name +
     drone +
-    # s(eastern_curlew_abundance) +
-    s(count) +
+    # s(count) +
     s(xy_disp_m) +
-    eastern_curlew_presence +
-    s(month_aest, bs = "cc", k = 5) +
-    s(tide_height_m, bs = "cc") +
-    tide_type +
-    s(temperature_dc) +
-    s(wind_speed_ms) +
-    s(rel_wind_dir_d) +
-    s(cloud_cover_p) +
-    s(location, bs = "re") +
+    # eastern_curlew_presence +
+    # s(eastern_curlew_abundance) +
+    # s(month_aest, bs = "cc", k = 7) +
+    # s(hrs_since_low_tide, bs = "cc") +
+    # s(temperature_dc) +
+    # s(wind_speed_ms) +
+    # s(rel_wind_dir_d) +
+    # s(cloud_cover_p) +
+    # s(location, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fit,
     family = "binomial",

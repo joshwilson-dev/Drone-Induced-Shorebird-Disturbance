@@ -50,9 +50,6 @@ data_fia <- data_clean %>%
     filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # drop eastern curlew to enable eastern curlew presence
     # filter(common_name != "eastern curlew") %>%
-    # drop species without enough data to converge
-    # group_by(species) %>%
-    # filter(n() > 3) %>%
     # refactor
     mutate(
     species = factor(species),
@@ -96,17 +93,17 @@ gam_fia <- gam(
     behaviour ~
     common_name +
     drone +
-    # s(eastern_curlew_abundance) +
     s(count) +
     s(z_disp_m) +
     eastern_curlew_presence +
+    # s(eastern_curlew_abundance) +
     s(month_aest, bs = "cc", k = 7) +
     s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
     s(rel_wind_dir_d) +
     s(cloud_cover_p) +
-    # s(location, bs = "re") +
+    s(location, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fia,
     family = "binomial",
