@@ -31,7 +31,6 @@ lapply(packages, require, character.only = TRUE)
 
 # Import Data
 data_clean <- read_csv(choose.files(), guess_max = 1000000)
-data_clean_head <- head(data_clean)
 
 ##########################
 #### Data Preparation ####
@@ -42,17 +41,17 @@ data_fid <- data_clean %>%
     filter(behaviour == 1) %>%
     group_by(test, flight, species) %>%
     slice(1) %>%
-    # filter(drone != "inspire 2") %>%
-    # drop species without enough data to converge
-    group_by(species) %>%
-    filter(n() > 3) %>%
+    # drop low tide data as it is innaccurate
+    filter(
+        notes !=
+        "low tide count, species and gps may be inaccurate" |
+        is.na(notes)) %>%
     # refactor
     mutate(
     species = factor(species),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location),
-    tide_type = factor(tide_type))
+    location = factor(location))
 summary(data_fid)
 #################
 #### Fit gam ####
@@ -88,8 +87,7 @@ gam_fid <- gam(
     eastern_curlew_presence +
     # s(eastern_curlew_abundance) +
     s(month_aest, bs = "cc", k = 5) +
-    s(tide_height_m, bs = "cc") +
-    tide_type +
+    s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
     s(rel_wind_dir_d) +

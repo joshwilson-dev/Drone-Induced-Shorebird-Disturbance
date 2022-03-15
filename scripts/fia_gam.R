@@ -41,24 +41,24 @@ data_fia <- data_clean %>%
     filter(approach_type == "advancing") %>%
     # keep only flights where the birds flew, or we got within 20m
     filter(behaviour == 1 | xy_disp_m <= 20) %>%
-    # degrade data into first instance of maximum behaviour per approach type
+    # for each approach, degrade data into first instance of flight
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(test, flight, species) %>%
     filter(behaviour == max(behaviour)) %>%
     slice(1) %>%
-    # drop drone without enough data to converge
-    filter(drone != "inspire 2") %>%
+    # drop data where alternate disturbance occured
+    filter(notes != "alternate disturbance" | is.na(notes)) %>%
+    # drop eastern curlew to enable eastern curlew presence
+    # filter(common_name != "eastern curlew") %>%
     # drop species without enough data to converge
-    group_by(species) %>%
-    filter(n() > 3) %>%
+    # group_by(species) %>%
+    # filter(n() > 3) %>%
     # refactor
     mutate(
     species = factor(species),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location),
-    tide_type = factor(tide_type),
-    migration_prep = factor(migration_prep))
+    location = factor(location))
 summary(data_fia)
 
 #################
@@ -100,15 +100,13 @@ gam_fia <- gam(
     s(count) +
     s(z_disp_m) +
     eastern_curlew_presence +
-    # s(month_aest, bs = "cc", k = 7) +
-    migration_prep +
-    s(tide_height_m, bs = "cc") +
-    tide_type +
+    s(month_aest, bs = "cc", k = 7) +
+    s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
     s(rel_wind_dir_d) +
     s(cloud_cover_p) +
-    s(location, bs = "re") +
+    # s(location, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fia,
     family = "binomial",
@@ -117,35 +115,37 @@ gam_fia <- gam(
 
 summary(gam_fia)
 windows()
-visreg(gam_fia, ylim = c(-10, 2))
+visreg(gam_fia)
 
 ###########################
 #### Creating New Data ####
 ###########################
 
 common_name_new <- unique(data_fia$common_name)
-drone_new <- unique(data_fia$drone)
+# drone_new <- unique(data_fia$drone)
 z_disp_m_new <- seq(min(data_fia$z_disp_m), max(data_fia$z_disp_m), by = 10)
 eastern_curlew_prescence_new <- unique(data_fia$eastern_curlew_presence)
 month_aest_new <- unique(data_fia$month_aest)
-wind_speed_ms_new <- seq(
-    min(data_fia$wind_speed_ms),
-    max(data_fia$wind_speed_ms),
+# wind_speed_ms_new <- seq(
+#     min(data_fia$wind_speed_ms),
+#     max(data_fia$wind_speed_ms),
+#     by = 1)
+cloud_cover_p_new <- seq(
+    min(data_fia$cloud_cover_p),
+    max(data_fia$cloud_cover_p),
     by = 1)
-could_cover_p_new <- seq(
-    min(data_fia$could_cover_p),
-    max(data_fia$could_cover_p),
-    by = 1)
-flock_number_new <- "186"
+flock_number_new <- "207"
+test_new <- "110"
 
 new_data_fia <- expand.grid(
     common_name = common_name_new,
-    drone = drone_new,
+    # drone = drone_new,
     z_disp_m = z_disp_m_new,
     eastern_curlew_presence = eastern_curlew_prescence_new,
     month_aest = month_aest_new,
-    wind_speed_ms = wind_speed_ms_new,
-    could_cover_p = could_cover_p_new,
+    # wind_speed_ms = wind_speed_ms_new,
+    cloud_cover_p = cloud_cover_p_new,
+    test = test_new,
     flock_number = flock_number_new)
 
 pred_fia <- predict.gam(gam_fia,
@@ -166,11 +166,11 @@ results_fia <- new_data_fia %>%
 
 data_fia_plot <- results_fia  %>%
     filter(
-        drone == "phantom 4 pro",
-        eastern_curlew_presence == FALSE,
+        # drone == "phantom 4 pro",
+        eastern_curlew_presence == TRUE,
         month_aest == 8,
-        wind_speed_ms == wind_speed_ms_new[length(wind_speed_ms_new) / 2],
-        could_cover_p == could_cover_p_new[length(could_cover_p_new) / 2])
+        # wind_speed_ms == wind_speed_ms_new[length(wind_speed_ms_new) / 2],
+        cloud_cover_p == cloud_cover_p_new[length(cloud_cover_p_new) / 2])
 
 # species sensitivity vs height above takeoff
 ggplot() +
@@ -218,4 +218,5 @@ ggplot() +
         axis.title = element_text(size = 14, face = "bold"),
         plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
         legend.position = "none",
-        strip.text.x = element_text(size = 10, face = "bold"))
+        strip.text.x = element_text(size = 10, face = "bold")) +
+    ylim(0, 1)
