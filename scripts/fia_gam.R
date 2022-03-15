@@ -39,15 +39,18 @@ data_clean <- read_csv(choose.files(), guess_max = 1000000)
 data_fia <- data_clean %>%
     # keep only flights where the drone was advancing
     filter(approach_type == "advancing") %>%
-    # keep only flights where the birds flew, or we got within 20m
-    filter(behaviour == 1 | xy_disp_m <= 20) %>%
-    # for each approach, degrade data into first instance of flight
+    # change altitude to the most common value for entire approach
+    group_by(test, flight) %>%
+    mutate(z_disp_m = which.max(tabulate(z_disp_m))) %>%
+    # for each approach, degrade data into first instance of flight,
+    # or data from closest approach distance, provided it is less than 20m
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(test, flight, species) %>%
     filter(behaviour == max(behaviour)) %>%
+    filter(behaviour == 1 | xy_disp_m == min(xy_disp_m)) %>%
+    filter(behaviour == 1 | xy_disp_m <= 20) %>%
+    arrange(video_time_s) %>%
     slice(1) %>%
-    # drop data where alternate disturbance occured
-    filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # drop eastern curlew to enable eastern curlew presence
     # filter(common_name != "eastern curlew") %>%
     # refactor
@@ -55,7 +58,8 @@ data_fia <- data_clean %>%
     species = factor(species),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location))
+    location = factor(location),
+    test = factor(test))
 summary(data_fia)
 
 #################
@@ -104,6 +108,7 @@ gam_fia <- gam(
     s(rel_wind_dir_d) +
     s(cloud_cover_p) +
     s(location, bs = "re") +
+    # s(test, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fia,
     family = "binomial",

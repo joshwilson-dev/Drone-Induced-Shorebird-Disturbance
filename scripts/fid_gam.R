@@ -37,12 +37,13 @@ data_clean <- read_csv(choose.files(), guess_max = 1000000)
 ##########################
 
 data_fid <- data_clean %>%
+    # drop control data
+    filter(approach_type != "control") %>%
     # keep only first instance of flight for each approach and species
     filter(behaviour == 1) %>%
     group_by(test, flight, species) %>%
+    arrange(video_time_s) %>%
     slice(1) %>%
-    # drop data where alternate disturbance occured
-    filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # drop low tide data as it is innaccurate
     filter(
         notes !=
@@ -53,8 +54,10 @@ data_fid <- data_clean %>%
     species = factor(species),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location))
+    location = factor(location),
+    test = factor(test))
 summary(data_fid)
+
 #################
 #### Fit gam ####
 #################
@@ -95,6 +98,7 @@ gam_fid <- gam(
     s(rel_wind_dir_d) +
     s(cloud_cover_p) +
     s(location, bs = "re") +
+    # s(test, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fid,
     family = "gaussian",

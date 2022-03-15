@@ -35,29 +35,30 @@ data_clean <- read_csv(choose.files(), guess_max = 1000000)
 ##########################
 #### Data Preparation ####
 ##########################
-
 data_fit <- data_clean %>%
     # keep only flights where the drone was ascending
     filter(approach_type == "ascending") %>%
-    # degrade data into first instance of maximum behaviour per approach type
+    # change ascent distance to the most common value for entire approach
+    group_by(test, flight) %>%
+    mutate(xy_disp_m = which.max(tabulate(xy_disp_m))) %>%
+    # degrade data into first instance of flight, or data from maximum
+    # altitude if flight didn't occur
     mutate(behaviour = factor(behaviour, levels = c(0, 1), ordered = TRUE)) %>%
     group_by(test, flight, species) %>%
     filter(behaviour == max(behaviour)) %>%
+    filter(behaviour == 1 | z_disp_m == max(z_disp_m)) %>%
+    arrange(video_time_s) %>%
     slice(1) %>%
-    # drop data where alternate disturbance occured
-    filter(notes != "alternate disturbance" | is.na(notes)) %>%
-    # drop species without enough data to converge
-    group_by(species) %>%
-    filter(n() > 3) %>%
-    # mistakes
-    filter(drone != "phantom pro 4") %>%
-    filter(!is.na(count)) %>%
+    # drop eastern curlew to enable eastern curlew presence
+    # filter(common_name != "eastern curlew") %>%
     # refactor
     mutate(
     species = factor(species),
+    common_name = factor(common_name),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location))
+    location = factor(location),
+    test = factor(test))
 summary(data_fit)
 
 #################
@@ -80,17 +81,18 @@ gam_fit <- gam(
     behaviour ~
     common_name +
     drone +
-    # s(count) +
+    s(count) +
     s(xy_disp_m) +
-    # eastern_curlew_presence +
+    eastern_curlew_presence +
     # s(eastern_curlew_abundance) +
-    # s(month_aest, bs = "cc", k = 7) +
-    # s(hrs_since_low_tide, bs = "cc") +
-    # s(temperature_dc) +
-    # s(wind_speed_ms) +
-    # s(rel_wind_dir_d) +
-    # s(cloud_cover_p) +
-    # s(location, bs = "re") +
+    s(month_aest, bs = "cc", k = 7) +
+    s(hrs_since_low_tide, bs = "cc") +
+    s(temperature_dc) +
+    s(wind_speed_ms) +
+    s(rel_wind_dir_d) +
+    s(cloud_cover_p) +
+    s(location, bs = "re") +
+    # s(test, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fit,
     family = "binomial",
@@ -98,7 +100,8 @@ gam_fit <- gam(
     select = T)
 
 summary(gam_fit)
-
+windows()
+visreg(gam_fit)
 ###########################
 #### Creating New Data ####
 ###########################
