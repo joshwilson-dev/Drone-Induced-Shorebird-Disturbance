@@ -30,7 +30,7 @@ lapply(packages, require, character.only = TRUE)
 rm(list = ls())
 
 # Import Data
-data <- read_csv(choose.files(), guess_max = 1000000)
+data <- read_csv(choose.files(), guess_max = 100000)
 
 ###################################
 #### General Data Augmentation ####
@@ -82,16 +82,168 @@ sci_com <- data.frame(
         "terek sandpiper"))
 
 gps_loc <- data.frame(
-    lat_round = c(-27.05, -27.48, -27.48, -27.49, -27.48, -27.54),
-    long_round = c(153.11, 153.20, 153.21, 153.24, 153.24, 153.28),
+    lat_rnd = c(
+        -27.05, -27.05, -27.04, -27.48, -27.48, -27.49, -27.48, -27.54, -27.45),
+    lon_rnd = c(
+        153.11, 153.12, 153.12, 153.20, 153.21, 153.24, 153.24, 153.28, 153.19),
     location = c(
+        "toorbul",
+        "toorbul",
         "toorbul",
         "queens esplanade",
         "queens esplanade",
         "geoff skinner",
         "geoff skinner",
-        "oyster point")
+        "oyster point",
+        "manly")
 )
+
+loc_low <- data.frame(
+    location = c(
+        "oyster point",
+        "geoff skinner",
+        "oyster point",
+        "geoff skinner",
+        "queens esplanade",
+        "queens esplanade",
+        "oyster point",
+        "queens esplanade",
+        "oyster point",
+        "oyster point",
+        "queens esplanade",
+        "oyster point",
+        "oyster point",
+        "queens esplanade",
+        "geoff skinner",
+        "queens esplanade",
+        "toorbul",
+        "geoff skinner",
+        "queens esplanade",
+        "queens esplanade",
+        "toorbul",
+        "queens esplanade",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "queens esplanade",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "queens esplanade",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "toorbul",
+        "manly",
+        "queens esplanade"),
+    date_aest = as_date(c(
+        "2020-04-18",
+        "2020-04-19",
+        "2020-04-24",
+        "2020-04-24",
+        "2020-04-26",
+        "2020-05-02",
+        "2020-05-02",
+        "2020-05-03",
+        "2020-05-03",
+        "2020-05-09",
+        "2020-05-11",
+        "2020-05-18",
+        "2020-05-23",
+        "2020-05-25",
+        "2021-02-01",
+        "2021-02-01",
+        "2021-02-03",
+        "2021-02-05",
+        "2021-02-05",
+        "2021-02-08",
+        "2021-02-10",
+        "2021-02-12",
+        "2021-02-15",
+        "2021-02-17",
+        "2021-02-19",
+        "2021-02-24",
+        "2021-02-26",
+        "2021-07-06",
+        "2021-07-11",
+        "2021-07-15",
+        "2021-07-23",
+        "2021-07-28",
+        "2021-08-12",
+        "2021-08-16",
+        "2021-08-19",
+        "2021-08-19",
+        "2021-08-23",
+        "2021-08-27",
+        "2021-09-20",
+        "2021-09-24",
+        "2021-09-28",
+        "2021-09-29",
+        "2021-09-30",
+        "2021-12-30",
+        "2022-01-09",
+        "2022-01-13",
+        "2022-01-13")),
+    prev_low_tide = as_datetime(c(
+        "2020-04-18 00:30:00",
+        "2020-04-19 01:06:00",
+        "2020-04-24 04:39:00",
+        "2020-04-24 04:20:00",
+        "2020-04-26 05:40:00",
+        "2020-05-01 22:06:00",
+        "2020-05-01 22:17:00",
+        "2020-05-02 23:26:00",
+        "2020-05-02 23:37:00",
+        "2020-05-09 05:25:00",
+        "2020-05-11 06:57:00",
+        "2020-05-18 00:45:00",
+        "2020-05-23 04:23:00",
+        "2020-05-25 05:31:00",
+        "2021-02-01 05:42:00",
+        "2021-02-01 05:50:00",
+        "2021-02-03 07:51:00",
+        "2021-02-05 09:32:00",
+        "2021-02-05 09:40:00",
+        "2021-02-08 00:19:00",
+        "2021-02-10 02:42:00",
+        "2021-02-12 03:50:00",
+        "2021-02-15 06:22:00",
+        "2021-02-17 07:46:00",
+        "2021-02-19 09:39:00",
+        "2021-02-24 01:06:00",
+        "2021-02-26 03:19:00",
+        "2021-07-06 02:20:00",
+        "2021-07-11 05:30:00",
+        "2021-07-15 07:57:00",
+        "2021-07-23 03:54:00",
+        "2021-07-28 07:36:00",
+        "2021-08-12 06:50:00",
+        "2021-08-16 09:29:00",
+        "2021-08-19 01:49:00",
+        "2021-08-19 13:06:00",
+        "2021-08-23 05:14:00",
+        "2021-08-27 07:31:00",
+        "2021-09-20 04:10:00",
+        "2021-09-24 05:23:00",
+        "2021-09-28 08:39:00",
+        "2021-09-29 09:43:00",
+        "2021-09-30 11:00:00",
+        "2021-12-30 00:25:00",
+        "2022-01-09 08:56:00",
+        "2022-01-12 23:59:00",
+        "2022-01-12 23:57:00"),
+        tz = "australia/queensland"))
 
 data_aug <- data %>%
     mutate(
@@ -131,7 +283,7 @@ data_aug <- data %>%
         # add month integer
         month_aest = month(datetime_aest),
         # add date
-        date_aest = as.Date(datetime_aest),
+        date_aest = as.Date(datetime_aest, tz = "australia/queensland"),
         # add migration prep
         migration_prep = (
             case_when(
@@ -180,8 +332,8 @@ data_aug <- data %>%
             ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
             (long - drone_longitude_d))) ^ 2)),
         # round latitude and longitude for location
-        lat_round = round(lat, 2),
-        long_round = round(long, 2),
+        lat_rnd = round(lat, 2),
+        lon_rnd = round(long, 2),
         # add in bearing between drone and birds
         bearing  = (
             (180 / pi) * atan2(
@@ -199,6 +351,13 @@ data_aug <- data %>%
                 360 * abs(round((bearing - wind_dir_d) / 360))))) %>%
     # add location
     merge(., gps_loc, all.x = TRUE) %>%
+    # add previous low tide time
+    merge(., loc_low, all.x = TRUE) %>%
+    # add time since low tide
+    mutate(hrs_since_low_tide = as.numeric(difftime(
+        datetime_aest,
+        prev_low_tide,
+        units = "hours"))) %>%
     # add flock
     group_by(date_aest, location) %>%
     mutate(flock_number = cur_group_id()) %>%
@@ -210,10 +369,12 @@ data_aug <- data %>%
         flight,
         flock_number,
         datetime_aest,
+        date_aest,
+        prev_low_tide,
+        hrs_since_low_tide,
         location,
         video_time_s,
         tide_height_m,
-        tide_type,
         temperature_dc,
         cloud_cover_p,
         wind_speed_ms,
