@@ -81,6 +81,7 @@ sci_com <- data.frame(
         "masked lapwing",
         "terek sandpiper"))
 
+# GPS data to location label
 gps_loc <- data.frame(
     lat_rnd = c(
         -27.05, -27.05, -27.04, -27.48, -27.48, -27.49, -27.48, -27.54, -27.45),
@@ -95,9 +96,9 @@ gps_loc <- data.frame(
         "geoff skinner",
         "geoff skinner",
         "oyster point",
-        "manly")
-)
+        "manly"))
 
+# most recent low tide for each test
 loc_low <- data.frame(
     location = c(
         "oyster point",
@@ -245,6 +246,12 @@ loc_low <- data.frame(
         "2022-01-12 23:57:00"),
         tz = "australia/queensland"))
 
+# the drone clock was set an hour early in the tests below
+incorrect_time <- c(
+    35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
+    54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 68, 69)
+
+# creating clean dataset
 data_aug <- data %>%
     mutate(
         # calculate drone acceleration
@@ -280,6 +287,10 @@ data_aug <- data %>%
                 `datetime(utc)` * 60 * 60 * 24,
                 origin = "1899/12/30 0:00:00.00",
                 tz = "australia/queensland")),
+        # subtract 1 hour from the incorrect times
+        datetime_aest = case_when(
+            test %in% incorrect_time  & flight != 0 ~ datetime_aest - 60 * 60,
+            TRUE ~ datetime_aest),
         # add month integer
         month_aest = month(datetime_aest),
         # add date
@@ -351,6 +362,10 @@ data_aug <- data %>%
     merge(., gps_loc, all.x = TRUE) %>%
     # add previous low tide time
     merge(., loc_low, all.x = TRUE) %>%
+    filter(datetime_aest > prev_low_tide) %>%
+    group_by(test, flight, video_time_s, species) %>%
+    arrange(desc(prev_low_tide)) %>%
+    slice(1) %>%
     # add time since low tide
     mutate(hrs_since_low_tide = as.numeric(difftime(
         datetime_aest,
@@ -367,7 +382,6 @@ data_aug <- data %>%
         flight,
         flock_number,
         datetime_aest,
-        date_aest,
         prev_low_tide,
         hrs_since_low_tide,
         location,
