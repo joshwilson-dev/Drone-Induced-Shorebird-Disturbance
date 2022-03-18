@@ -52,7 +52,7 @@ data_fia <- data_clean %>%
     arrange(video_time_s) %>%
     slice(1) %>%
     # drop eastern curlew to enable eastern curlew presence
-    # filter(common_name != "eastern curlew") %>%
+    filter(common_name != "eastern curlew") %>%
     # refactor
     mutate(
     species = factor(species),
@@ -96,18 +96,21 @@ summary(data_fia)
 gam_fia <- gam(
     behaviour ~
     common_name +
-    drone +
-    s(count) +
+    # drone +
+    # rel_wind_dir_d +
+    # wind_speed_ms +
+    # cloud_cover_p +
+    # s(count) +
     s(z_disp_m) +
     eastern_curlew_presence +
     # s(eastern_curlew_abundance) +
     s(month_aest, bs = "cc", k = 7) +
-    s(hrs_since_low_tide, bs = "cc") +
-    s(temperature_dc) +
-    s(wind_speed_ms) +
-    s(rel_wind_dir_d) +
+    # s(hrs_since_low_tide, bs = "cc") +
+    # s(temperature_dc) +
+    # s(wind_speed_ms) +
+    # s(rel_wind_dir_d) +
     s(cloud_cover_p) +
-    s(location, bs = "re") +
+    # s(location, bs = "re") +
     # s(test, bs = "re") +
     s(flock_number, bs = "re"),
     data = data_fia,
@@ -136,8 +139,7 @@ cloud_cover_p_new <- seq(
     min(data_fia$cloud_cover_p),
     max(data_fia$cloud_cover_p),
     by = 1)
-flock_number_new <- "207"
-test_new <- "110"
+flock_number_new <- "45"
 
 new_data_fia <- expand.grid(
     common_name = common_name_new,
@@ -147,7 +149,6 @@ new_data_fia <- expand.grid(
     month_aest = month_aest_new,
     # wind_speed_ms = wind_speed_ms_new,
     cloud_cover_p = cloud_cover_p_new,
-    test = test_new,
     flock_number = flock_number_new)
 
 pred_fia <- predict.gam(gam_fia,
@@ -169,7 +170,7 @@ results_fia <- new_data_fia %>%
 data_fia_plot <- results_fia  %>%
     filter(
         # drone == "phantom 4 pro",
-        eastern_curlew_presence == TRUE,
+        eastern_curlew_presence == FALSE,
         month_aest == 8,
         # wind_speed_ms == wind_speed_ms_new[length(wind_speed_ms_new) / 2],
         cloud_cover_p == cloud_cover_p_new[length(cloud_cover_p_new) / 2])
