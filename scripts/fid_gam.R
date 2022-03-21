@@ -49,13 +49,14 @@ data_fid <- data_clean %>%
         notes !=
         "low tide count, species and gps may be inaccurate" |
         is.na(notes)) %>%
+    # need to take out eastern curlew to fit effect of ec presence
+    filter(common_name != "eastern curlew") %>%
     # refactor
     mutate(
     species = factor(species),
     drone = factor(drone),
     flock_number = factor(flock_number),
-    location = factor(location),
-    test = factor(test))
+    location = factor(location))
 summary(data_fid)
 
 #################
@@ -81,27 +82,22 @@ summary(data_fid)
 # flock number
 # each flock is a random sample of the total bird population
 
-# Interactions:
-
 gam_fid <- gam(
     xy_disp_m ~
     common_name +
     drone +
-    s(count) +
+    # s(count) +
     s(z_disp_m) +
     eastern_curlew_presence +
-    # s(eastern_curlew_abundance) +
-    s(month_aest, bs = "cc", k = 5) +
+    # s(month_aest, bs = "cc", k = 7) +
     s(hrs_since_low_tide, bs = "cc") +
-    s(temperature_dc) +
-    s(wind_speed_ms) +
-    s(rel_wind_dir_d) +
-    s(cloud_cover_p) +
-    s(location, bs = "re") +
-    # s(test, bs = "re") +
+    # s(temperature_dc) +
+    # s(wind_speed_ms) +
+    # s(rel_wind_dir_d) +
+    # s(cloud_cover_p) +
     s(flock_number, bs = "re"),
     data = data_fid,
-    family = "gaussian",
+    family = gaussian(),
     method = "REML",
     select = T)
 
@@ -112,28 +108,117 @@ visreg(gam_fid)
 ###########################
 #### Creating New Data ####
 ###########################
+common_name_new <- unique(data_fid$common_name)
+drone_new <- unique(data_fid$drone)
+z_disp_m_new <- seq(0, 120, by = 10)
+eastern_curlew_presence_new <- unique(data_fid$eastern_curlew_presence)
+count_new <- seq(0, 1000, by = 100)
+month_aest_new <- seq(0, 12, by = 1)
+hrs_since_low_tide_new <- seq(0, 12, by = 1)
+temperature_dc_new <- seq(15, 30, by = 2)
+wind_speed_ms_new <- seq(0, 10, by = 1)
+rel_wind_dir_d_new <- seq(0, 180, by = 20)
+cloud_cover_p_new <- seq(0, 100, by = 20)
+flock_number_new <- unique(data_fid$flock_number)
 
-# Creating new data
+ndata <- expand.grid(
+    common_name = common_name_new,
+    drone = drone_new,
+    z_disp_m = z_disp_m_new,
+    eastern_curlew_presence = eastern_curlew_presence_new,
+    # count = count_new,
+    # month_aest = month_aest_new,
+    hrs_since_low_tide = hrs_since_low_tide_new,
+    # temperature_dc = temperature_dc_new,
+    # wind_speed_ms = wind_speed_ms_new,
+    # rel_wind_dir_d = rel_wind_dir_d_new,
+    # cloud_cover_p = cloud_cover_p_new,
+    flock_number = flock_number_new)
 
-altitude_fid <- seq(30, 110, by = 1)
+# grab the inverse link function
+ilink <- family(gam_fid)$linkinv
 
-new_data_fid <- expand.grid(height_above_takeoff.meters. = altitude_fid)
+# add the fitted values by predicting from the model for the new data
+ndata <- add_column(
+    ndata,
+    fit = predict(
+        gam_fid,
+        exclude = c("s(flock_number)"),
+        newdata = ndata,
+        trans = binomial()$ilink,
+        type = "response"))
 
-pred_fid <- predict.gam(
-    gam_fid,
-    new_data_fid,
-    trans = binomial()$linkinv,
-    type = "response",
-    se.fit = TRUE)
+# add fit and se.fit on the link scale
+ndata <- bind_cols(
+    ndata,
+    setNames(as_tibble(predict(
+        gam_fid,
+        exclude = c("s(flock_number)"),
+        newdata = ndata,
+        trans = binomial()$linkinv,
+        se.fit = TRUE)[1:2]),
+        c("fit_link", "se_link")))
 
-results_fid <- new_data_fid %>%
-    mutate(prediction = pred_fid$fit) %>%
-    mutate(upper = pred_fid$fit + (2 * pred_fid$se.fit)) %>%
-    mutate(lower = pred_fid$fit - (2 * pred_fid$se.fit))
+# create the interval and backtransform
+results_fid <- mutate(
+    ndata,
+    prediction = ilink(fit_link),
+    upper = ilink(fit_link + (2 * se_link)),
+    lower = ilink(fit_link - (2 * se_link)))
 
 #############################
 #### Visualising Results ####
 #############################
+
+data_fid_plot <- results_fid  %>%
+    filter(
+        drone == "mavic 2 pro",
+        eastern_curlew_presence == FALSE,
+        hrs_since_low_tide == 6)
+
+ggplot() +
+    theme_set(theme_bw()) +
+    facet_wrap(~common_name) +
+    geom_line(
+        data = data_fid_plot,
+        aes(
+            z_disp_m,
+            prediction,
+            group = common_name,
+            colour = common_name),
+        size = 1.2) +
+    geom_ribbon(
+        data = data_fia_plot,
+        aes(
+            z_disp_m,
+            ymin = lower,
+            ymax = upper,
+            group = common_name,
+            colour = common_name,
+            fill = common_name),
+        alpha = 0.05) +
+    geom_point(
+        data = filter(data_fid, drone == "mavic 2 pro"),
+        aes(z_disp_m,
+            xy_disp_m,
+            group = common_name,
+            colour = common_name))
+    # coord_flip(ylim = c(0, 260), xlim = c(0, 120)) +
+    # labs(x = "Drone Altitude (m)", y = "Flight Initiation Distance (m)") +
+    # theme(
+    #     axis.text = element_text(face = "bold", color = "black"),
+    #     axis.title = element_text(size = 14, face = "bold"),
+    #     plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    #     legend.position = "none",
+    #     aspect.ratio = 0.45) +
+    # scale_x_continuous(
+    #     minor_breaks = round(seq(0, 140, 20)),
+    #     breaks = round(seq(0, 140, by = 20), 1),
+    #     expand = c(0, 0)) +
+    # scale_y_continuous(
+    #     minor_breaks = round(seq(-400, 400, 20)),
+    #     breaks = round(seq(-400, 400, by = 20), 1),
+    #     expand = c(0, 0))
 
 # effect of altitude for mavic 2 data
 ggplot() +

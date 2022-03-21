@@ -51,8 +51,12 @@ data_fia <- data_clean %>%
     filter(behaviour == 1 | xy_disp_m <= 20) %>%
     arrange(video_time_s) %>%
     slice(1) %>%
-    # drop eastern curlew to enable eastern curlew presence
-    filter(common_name != "eastern curlew") %>%
+    # drop eastern curlew true as because their presence significantly
+    # affects results (based on fid) and we can't include in gam because
+    # approaches stopped once EC took flight.
+    filter(
+        common_name == "eastern curlew" |
+        eastern_curlew_presence == FALSE) %>%
     # refactor
     mutate(
     species = factor(species),
@@ -68,50 +72,46 @@ summary(data_fia)
 
 # Main Effects
 
-# altitude:
-# does the behaviour vary with drone altitude?
-
-# species:
+# common_name:
 # does the behaviour vary with species?
 
-# eastern curlew presence:
-# does the behaviour vary with the presence of eastern curlew?
+# drone:
+# does the behaviour vary with the type of drone?
 
-# life stage
-# does the behaviour vary with life stage?
+# z_disp_m:
+# does the behaviour vary with drone altitude?
+
+# count:
+# does the behaviour vary with flock size?
+
+# month_aest
+
+# hrs_since_low_tide
+
+# temperature_dc
+# does the behaviour vary with temperature?
+
+# wind_speed_ms
+# rel_wind_dir_d
+# cloud_cover_p
 
 # Random Effects
 
 # flock number
 # each flock represents a random subset of the entire population
 
-# Interactions
-
-# altitude - species:
-# does the relationship between altitude and behaviour vary between species
-
-# altitude - drone:
-# does the relationship between altitude and behaviour depend on the drone
-
 gam_fia <- gam(
     behaviour ~
     common_name +
-    # drone +
-    # rel_wind_dir_d +
-    # wind_speed_ms +
-    # cloud_cover_p +
-    # s(count) +
+    drone +
     s(z_disp_m) +
-    eastern_curlew_presence +
-    # s(eastern_curlew_abundance) +
-    s(month_aest, bs = "cc", k = 7) +
+    # s(count) +
+    # s(month_aest, bs = "cc", k = 7) +
     # s(hrs_since_low_tide, bs = "cc") +
     # s(temperature_dc) +
-    # s(wind_speed_ms) +
-    # s(rel_wind_dir_d) +
-    s(cloud_cover_p) +
-    # s(location, bs = "re") +
-    # s(test, bs = "re") +
+    s(wind_speed_ms) +
+    s(rel_wind_dir_d) +
+    # s(cloud_cover_p) +
     s(flock_number, bs = "re"),
     data = data_fia,
     family = "binomial",
@@ -125,43 +125,61 @@ visreg(gam_fia)
 ###########################
 #### Creating New Data ####
 ###########################
-
 common_name_new <- unique(data_fia$common_name)
-# drone_new <- unique(data_fia$drone)
-z_disp_m_new <- seq(min(data_fia$z_disp_m), max(data_fia$z_disp_m), by = 10)
-eastern_curlew_prescence_new <- unique(data_fia$eastern_curlew_presence)
-month_aest_new <- unique(data_fia$month_aest)
-# wind_speed_ms_new <- seq(
-#     min(data_fia$wind_speed_ms),
-#     max(data_fia$wind_speed_ms),
-#     by = 1)
-cloud_cover_p_new <- seq(
-    min(data_fia$cloud_cover_p),
-    max(data_fia$cloud_cover_p),
-    by = 1)
-flock_number_new <- "45"
+drone_new <- unique(data_fia$drone)
+z_disp_m_new <- seq(0, 120, by = 10)
+count_new <- seq(0, 1000, by = 100)
+month_aest_new <- seq(0, 12, by = 1)
+hrs_since_low_tide_new <- seq(0, 12, by = 1)
+temperature_dc_new <- seq(15, 30, by = 2)
+wind_speed_ms_new <- seq(0, 10, by = 1)
+rel_wind_dir_d_new <- seq(0, 180, by = 20)
+cloud_cover_p_new <- seq(0, 100, by = 20)
+flock_number_new <- unique(data_fia$flock_number)
 
-new_data_fia <- expand.grid(
+ndata <- expand.grid(
     common_name = common_name_new,
-    # drone = drone_new,
+    drone = drone_new,
     z_disp_m = z_disp_m_new,
-    eastern_curlew_presence = eastern_curlew_prescence_new,
-    month_aest = month_aest_new,
-    # wind_speed_ms = wind_speed_ms_new,
-    cloud_cover_p = cloud_cover_p_new,
+    # count = count_new,
+    # month_aest = month_aest_new,
+    # hrs_since_low_tide = hrs_since_low_tide_new,
+    # temperature_dc = temperature_dc_new,
+    wind_speed_ms = wind_speed_ms_new,
+    rel_wind_dir_d = rel_wind_dir_d_new,
+    # cloud_cover_p = cloud_cover_p_new,
     flock_number = flock_number_new)
 
-pred_fia <- predict.gam(gam_fia,
-                    new_data_fia,
-                    trans = binomial()$linkinv,
-                    type = "response",
-                    se.fit = TRUE)
+# grab the inverse link function
+ilink <- family(gam_fia)$linkinv
 
-results_fia <- new_data_fia %>%
-    mutate(
-        prediction = pred_fia$fit,
-        upper = pred_fia$fit + (2 * pred_fia$se.fit),
-        lower = pred_fia$fit - (2 * pred_fia$se.fit))
+# add the fitted values by predicting from the model for the new data
+ndata <- add_column(
+    ndata,
+    fit = predict(
+        gam_fia,
+        exclude = c("s(flock_number)"),
+        newdata = ndata,
+        trans = binomial()$linkinv,
+        type = "response"))
+
+# add fit and se.fit on the link scale
+ndata <- bind_cols(
+    ndata,
+    setNames(as_tibble(predict(
+        gam_fia,
+        exclude = c("s(flock_number)"),
+        newdata = ndata,
+        trans = binomial()$linkinv,
+        se.fit = TRUE)[1:2]),
+        c("fit_link", "se_link")))
+
+# create the interval and backtransform
+results_fia <- mutate(
+    ndata,
+    prediction = ilink(fit_link),
+    upper = ilink(fit_link + (2 * se_link)),
+    lower = ilink(fit_link - (2 * se_link)))
 
 #############################
 #### Visualising Results ####
@@ -169,11 +187,9 @@ results_fia <- new_data_fia %>%
 
 data_fia_plot <- results_fia  %>%
     filter(
-        # drone == "phantom 4 pro",
-        eastern_curlew_presence == FALSE,
-        month_aest == 8,
-        # wind_speed_ms == wind_speed_ms_new[length(wind_speed_ms_new) / 2],
-        cloud_cover_p == cloud_cover_p_new[length(cloud_cover_p_new) / 2])
+        drone == "mavic 2 pro",
+        wind_speed_ms == 2,
+        rel_wind_dir_d == 80)
 
 # species sensitivity vs height above takeoff
 ggplot() +
