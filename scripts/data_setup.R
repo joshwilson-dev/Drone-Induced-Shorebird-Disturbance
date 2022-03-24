@@ -253,12 +253,19 @@ incorrect_time <- c(
 
 # creating clean dataset
 data_aug <- data %>%
+    group_by(test, flight) %>%
+    arrange(`video time (seconds)`) %>%
     mutate(
+        # set zspeed to zero if it's NA, because it's needed for acceleration
+        `zSpeed(m/s)` = case_when(is.na(`zSpeed(m/s)`) ~ 0, T ~ `zSpeed(m/s)`),
+        `xSpeed(m/s)` = case_when(is.na(`xSpeed(m/s)`) ~ 0, T ~ `xSpeed(m/s)`),
+        `ySpeed(m/s)` = case_when(is.na(`ySpeed(m/s)`) ~ 0, T ~ `ySpeed(m/s)`),
+        `speed(m/s)` = case_when(is.na(`speed(m/s)`) ~ 0, T ~ `speed(m/s)`),
         # calculate drone acceleration
-        z_acc_mss = (`zSpeed(m/s)` - lag(`zSpeed(m/s)`)) / 0.1,
-        x_acc_mss = (`xSpeed(m/s)` - lag(`xSpeed(m/s)`))  / 0.1,
-        y_acc_mss = (`ySpeed(m/s)` - lag(`ySpeed(m/s)`))  / 0.1,
-        xy_acc_mss = (`speed(m/s)` - lag(`speed(m/s)`))  / 0.1,
+        z_acc_mss = (`zSpeed(m/s)` - lag(`zSpeed(m/s)`, default = 0)) / 0.1,
+        x_acc_mss = (`xSpeed(m/s)` - lag(`xSpeed(m/s)`, default = 0))  / 0.1,
+        y_acc_mss = (`ySpeed(m/s)` - lag(`ySpeed(m/s)`, default = 0))  / 0.1,
+        xy_acc_mss = (`speed(m/s)` - lag(`speed(m/s)`, default = 0))  / 0.1,
         # rename drone velocity
         z_vel_ms = `zSpeed(m/s)`,
         x_vel_ms = `xSpeed(m/s)`,
@@ -393,7 +400,6 @@ data_aug <- data %>%
         wind_dir_d,
         rel_wind_dir_d,
         drone,
-        approach_type,
         species,
         common_name,
         behaviour,
