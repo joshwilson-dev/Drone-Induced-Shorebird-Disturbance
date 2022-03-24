@@ -2,9 +2,9 @@
 #### Header ####
 ################
 
-# Title: Shorebird Disturbance Analysis: FID
+# Title: Drone Induced Bird Disturbance Analysis
 # Author: Josh Wilson
-# Date: 08-08-2021
+# Date: 23-03-2022
 
 ###############
 #### Setup ####
@@ -14,7 +14,7 @@
 rm(list = ls())
 
 # Install Packages
-packages <- c("tidyverse", "mgcv", "visreg")
+packages <- c("tidyverse", "mgcv", "visreg", "pammtools")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -74,6 +74,7 @@ pam <- gam(
 
     ## target
     # common_name +
+    # ec_precense +
     s(count) +
     s(flock_number, bs = "re") +
 
@@ -87,85 +88,61 @@ pam <- gam(
     s(xy_acc_mss) +
 
     ## environment
-    location +
-    s(month_aest, bs = "cc", k = 7) +
+    # location +
+    # s(month_aest, bs = "cc", k = 3) +
     s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
     s(rel_wind_dir_d) +
     s(cloud_cover_p),
     data = data_pam,
-    family = poisson(),
+    # family = poisson(),
+    family = binomial(),
     offset = offset)
 
 summary(pam)
+# windows()
+# visreg(pam)
+
+#########################
+#### Create New Data ####
+#########################
+
+ref <- sample_info(ungroup(data_pam))
+
+new_data <- function(colname) {
+    new_dataframe <- data_pam %>%
+        ungroup() %>%
+        mutate(new_col = !!sym(colname)) %>%
+        make_newdata(new_col = seq_range(!!sym(colname), n = 100)) %>%
+        select(-!!sym(colname)) %>%
+        rename({{ colname }} := new_col) %>%
+        add_term(
+            pam,
+            term = colname,
+            exclude = c("s(flock_number)"),
+            reference = ref)
+    assign(paste0(colname, "_df"), new_dataframe, envir = .GlobalEnv)
+}
+
+predictors <- c("tend", "count")
+mapply(new_data, predictors)
 
 ############################
 #### Data Visualisation ####
 ############################
-
-ref <- sample_info(ungroup(data_pam))
-
-# Effect of xy_disp_m
-xy_disp_m_df <- data_pam %>%
-    ungroup() %>%
-    make_newdata(xy_disp_m = seq_range(xy_disp_m, n = 100)) %>%
-    add_term(
-        pam,
-        term = "xy_disp_m",
-        exclude = c("s(flock_number)"),
-        reference = ref)
-
-# Effect of z_disp_m
-z_disp_m_df <- data_pam %>%
-    ungroup() %>%
-    make_newdata(z_disp_m = seq_range(z_disp_m, n = 100)) %>%
-    add_term(
-        pam,
-        term = "z_disp_m",
-        exclude = c("s(flock_number)"),
-        reference = ref)
-
-# Effect of wind_speed_ms
-wind_speed_ms_df <- data_pam %>%
-    ungroup() %>%
-    make_newdata(wind_speed_ms = seq_range(wind_speed_ms, n = 100)) %>%
-    add_term(
-        pam,
-        term = "wind_speed_ms",
-        exclude = c("s(flock_number)"),
-        reference = ref)
-
-# Effect of rel_wind_dir_d
-rel_wind_dir_d_df <- data_pam %>%
-    ungroup() %>%
-    make_newdata(rel_wind_dir_d = seq_range(rel_wind_dir_d, n = 100)) %>%
-    add_term(
-        pam,
-        term = "rel_wind_dir_d",
-        exclude = c("s(flock_number)"),
-        reference = ref)
-
-# Effect of cloud_cover_p
-cloud_cover_p_df <- data_pam %>%
-    ungroup() %>%
-    make_newdata(cloud_cover_p = seq_range(cloud_cover_p, n = 100)) %>%
-    add_term(
-        pam,
-        term = "cloud_cover_p",
-        exclude = c("s(flock_number)"),
-        reference = ref)
-
-# visualise
 p_term <- ggplot(data = NULL, aes(y = fit)) +
     geom_line() +
     geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2) +
     theme(aspect.ratio = 1) +
     ylim(-7, 7)
-gridExtra::grid.arrange(
-    p_term %+% xy_disp_m_df + aes(x = xy_disp_m),
-    p_term %+% z_disp_m_df + aes(x = z_disp_m),
-    p_term %+% wind_speed_ms_df + aes(x = wind_speed_ms),
-    p_term %+% rel_wind_dir_d_df + aes(x = rel_wind_dir_d),
-    p_term %+% cloud_cover_p_df + aes(x = cloud_cover_p),
-    nrow = 2L)
+
+add_grid <- function(colname) {
+    df <- eval(parse(text = paste0(colname, "_df")))
+    gridExtra::grid.arrange(
+    p_term %+% df + aes(eval(parse(text = colname))),
+    nrow = 3L)
+}
+
+mapply(new_data, predictors)
+# close, but plots over the top each time
