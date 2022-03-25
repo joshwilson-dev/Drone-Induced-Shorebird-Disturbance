@@ -5,6 +5,7 @@
 # Title: Drone Induced Bird Disturbance Analysis
 # Author: Josh Wilson
 # Date: 23-03-2022
+# Reference: https://adibender.github.io/pammtools/articles/tdcovar.html
 
 ###############
 #### Setup ####
@@ -14,7 +15,7 @@
 rm(list = ls())
 
 # Install Packages
-packages <- c("tidyverse", "mgcv", "visreg", "pammtools")
+packages <- c("tidyverse", "mgcv", "visreg", "pammtools", "gridExtra")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -35,21 +36,22 @@ data_clean <- read_csv(choose.files(), guess_max = 1000000)
 ##########################
 #### Data Preparation ####
 ##########################
-data_pam <- data_clean %>%
+data_fit <- data_clean %>%
     # set start time to takeoff
     group_by(test, flight, species) %>%
     mutate(video_time_s = round(video_time_s - first(video_time_s), 1)) %>%
     # id is identifier for each test, flight, species
     group_by(test, flight, species) %>%
     mutate(id = cur_group_id()) %>%
-    # end of test is when birds fly, or drone lands or recording finishes
+    # end of test is when birds fly, drone lands, or recording finishes
     filter(!is.na(xy_disp_m)) %>%
     filter(!is.na(video_time_s)) %>%
     group_by(test, flight, species, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
-    # filter out some drones to make model converge faster
-    filter(drone == "mavic 2 pro") %>%
-    filter(common_name == "eastern curlew") %>%
+    # filter
+    # filter(
+    #     common_name == "eastern curlew" |
+    #     eastern_curlew_presence == FALSE) %>%
     # set up dataset for pam
     group_by(test, flight, species) %>%
     mutate(
@@ -66,20 +68,20 @@ data_pam <- data_clean %>%
         - notes
     )
 
-summary(data_pam)
+summary(data_fit)
 
-pam <- gam(
+fit <- gam(
     ped_status ~
     s(tend) +
 
     ## target
-    # common_name +
-    # ec_precense +
+    common_name +
+    eastern_curlew_presence +
     s(count) +
     s(flock_number, bs = "re") +
 
     ## drone
-    # drone +
+    drone +
     s(z_disp_m) +
     s(xy_disp_m) +
     s(z_vel_ms) +
@@ -88,8 +90,8 @@ pam <- gam(
     s(xy_acc_mss) +
 
     ## environment
-    # location +
-    # s(month_aest, bs = "cc", k = 3) +
+    location +
+    s(month_aest, bs = "cc", k = 7) +
     s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
@@ -100,49 +102,104 @@ pam <- gam(
     family = binomial(),
     offset = offset)
 
-summary(pam)
-# windows()
-# visreg(pam)
+summary(fit)
+
+###########################
+#### Save Fitted Model ####
+###########################
+
+saveRDS(fit, paste0("drone-induced-bird-disturbance-gam-", Sys.Date(), ".rds"))
+fit <- readRDS("./models/drone-induced-bird-disturbance-gam-2022-03-25.rds")
 
 #########################
 #### Create New Data ####
 #########################
 
-ref <- sample_info(ungroup(data_pam))
+ref <- sample_info(ungroup(data_fit))
 
 new_data <- function(colname) {
-    new_dataframe <- data_pam %>%
-        ungroup() %>%
-        mutate(new_col = !!sym(colname)) %>%
-        make_newdata(new_col = seq_range(!!sym(colname), n = 100)) %>%
-        select(-!!sym(colname)) %>%
-        rename({{ colname }} := new_col) %>%
-        add_term(
-            pam,
-            term = colname,
-            exclude = c("s(flock_number)"),
-            reference = ref)
+    col_type <- typeof(eval(parse(text = paste0("data_fit$", colname))))
+    print(colname)
+    if (col_type == "double") {
+        new_dataframe <- data_fit %>%
+            ungroup() %>%
+            mutate(new_col = !!sym(colname)) %>%
+            make_newdata(new_col = seq_range(!!sym(colname), n = 100)) %>%
+            select(-!!sym(colname)) %>%
+            rename({{ colname }} := new_col) %>%
+            add_term(
+                fit,
+                term = colname,
+                exclude = c("s(flock_number)"),
+                reference = ref)
+    }
+    else if (col_type == "character") {
+        new_dataframe <- data_fit %>%
+            ungroup() %>%
+            mutate(new_col = !!sym(colname)) %>%
+            make_newdata(new_col = unique(!!sym(colname))) %>%
+            select(-!!sym(colname)) %>%
+            rename({{ colname }} := new_col) %>%
+            add_term(
+                fit,
+                term = colname,
+                exclude = c("s(flock_number)"),
+                reference = ref)
+    }
     assign(paste0(colname, "_df"), new_dataframe, envir = .GlobalEnv)
 }
 
-predictors <- c("tend", "count")
+predictors <- c(
+    "tend",
+    "common_name",
+    # "eastern_curlew_presence",
+    "count",
+    "flock_number",
+    "drone",
+    "z_disp_m",
+    "xy_disp_m",
+    "z_vel_ms",
+    "xy_vel_ms",
+    "z_acc_mss",
+    "xy_acc_mss",
+    "location",
+    "month_aest",
+    "hrs_since_low_tide",
+    "temperature_dc",
+    "wind_speed_ms",
+    "rel_wind_dir_d",
+    "cloud_cover_p")
+
 mapply(new_data, predictors)
 
-############################
-#### Data Visualisation ####
-############################
-p_term <- ggplot(data = NULL, aes(y = fit)) +
-    geom_line() +
-    geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2) +
-    theme(aspect.ratio = 1) +
-    ylim(-7, 7)
+###########################
+#### Fit Visualisation ####
+###########################
 
-add_grid <- function(colname) {
-    df <- eval(parse(text = paste0(colname, "_df")))
-    gridExtra::grid.arrange(
-    p_term %+% df + aes(eval(parse(text = colname))),
-    nrow = 3L)
+plot_p_term <- function(colname) {
+    col_type <- typeof(eval(parse(text = paste0(colname, "_df$", colname))))
+    fit <- eval(parse(text = paste0(colname, "_df$fit")))
+    dataframe <- eval(parse(text = paste0(colname, "_df")))
+    plot <- ggplot(data = dataframe, aes(.data[[colname]], y = fit)) +
+    # ylim(-10, 10) +
+    {if(col_type == "character") {
+        geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper))}} +
+
+    {if(col_type == "double") {
+        geom_line()}} +
+    {if(col_type == "double") {
+        geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2)}}
+    assign(paste0(colname, "_plot"), plot, envir = .GlobalEnv)
 }
 
-mapply(new_data, predictors)
-# close, but plots over the top each time
+mapply(plot_p_term, predictors)
+do.call("grid.arrange", c(lapply(paste(predictors, "plot", sep = "_"), get)))
+
+ggplot(data = location_df, aes(x = location, y = fit)) +
+ylim(-10, 10) +
+geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+################################
+#### Response Visualisation ####
+################################

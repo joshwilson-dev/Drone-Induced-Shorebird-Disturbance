@@ -1,2 +1,0 @@
-library(survival)
-head(pbcseq)
