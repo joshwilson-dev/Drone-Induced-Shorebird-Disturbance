@@ -37,14 +37,14 @@ rm(list = ls())
 # Data to Import
 filenames <- c(
     # PHANTOM 4 PRO
-    "t003f00", # DONE tide
-    "t003f01", # DONE tide
-    "t003f02", # DONE tide
-    "t003f03", # DONE tide
-    "t003f04", # DONE tide
-    "t003f05", # DONE tide
-    "t003f06", # DONE tide
-    "t003f07", # DONE tide
+    "t003f00", # DONE
+    "t003f01", # DONE
+    "t003f02", # DONE
+    "t003f03", # DONE
+    "t003f04", # DONE
+    "t003f05", # DONE
+    "t003f06", # DONE
+    "t003f07", # DONE
     # "t003f08", # direct descent
 
     "t004f00", # DONE
@@ -342,6 +342,9 @@ filenames <- c(
 
     "t054f00", # DONE
     "t054f01", # DONE
+
+    "t055f00", # DONE
+    "t055f01", # DONE
 
     "t056f00", # DONE
     "t056f01", # DONE
@@ -644,6 +647,7 @@ filenames <- c(
     "t158f01", # DONE
 
     "t159f01", # DONE
+
     "t160f01", # DONE
 
     "t161f01", # DONE

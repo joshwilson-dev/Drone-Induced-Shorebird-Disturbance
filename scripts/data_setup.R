@@ -10,6 +10,9 @@
 #### Setup ####
 ###############
 
+# Clear Environment
+rm(list = ls())
+
 # Install Packages
 packages <- c("tidyverse", "lubridate")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
@@ -25,9 +28,6 @@ if (length(new_packages)) {
 
 # Import Packages
 lapply(packages, require, character.only = TRUE)
-
-# Clear Environment
-rm(list = ls())
 
 # Import Data
 data <- read_csv(choose.files(), guess_max = 100000)
@@ -81,6 +81,7 @@ sci_com <- data.frame(
         "masked lapwing",
         "terek sandpiper"))
 
+# GPS data to location label
 gps_loc <- data.frame(
     lat_rnd = c(
         -27.05, -27.05, -27.04, -27.48, -27.48, -27.49, -27.48, -27.54, -27.45),
@@ -95,9 +96,9 @@ gps_loc <- data.frame(
         "geoff skinner",
         "geoff skinner",
         "oyster point",
-        "manly")
-)
+        "manly"))
 
+# most recent low tide for each test
 loc_low <- data.frame(
     location = c(
         "oyster point",
@@ -245,22 +246,34 @@ loc_low <- data.frame(
         "2022-01-12 23:57:00"),
         tz = "australia/queensland"))
 
+# the drone clock was set an hour early in the tests below
+incorrect_time <- c(
+    35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
+    54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 68, 69)
+
+# creating clean dataset
 data_aug <- data %>%
+    group_by(test, flight) %>%
+    arrange(`video time (seconds)`) %>%
     mutate(
+        # set zspeed to zero if it's NA, because it's needed for acceleration
+        z_vel_ms = case_when(is.na(`zSpeed(m/s)`) ~ 0, T ~ `zSpeed(m/s)`),
+        x_vel_ms = case_when(is.na(`xSpeed(m/s)`) ~ 0, T ~ `xSpeed(m/s)`),
+        y_vel_ms = case_when(is.na(`ySpeed(m/s)`) ~ 0, T ~ `ySpeed(m/s)`),
+        xy_vel_ms = case_when(is.na(`speed(m/s)`) ~ 0, T ~ `speed(m/s)`),
         # calculate drone acceleration
-        z_acc_mss = (`zSpeed(m/s)` - lag(`zSpeed(m/s)`)) / 0.1,
-        x_acc_mss = (`xSpeed(m/s)` - lag(`xSpeed(m/s)`))  / 0.1,
-        y_acc_mss = (`ySpeed(m/s)` - lag(`ySpeed(m/s)`))  / 0.1,
-        xy_acc_mss = (`speed(m/s)` - lag(`speed(m/s)`))  / 0.1,
-        # rename drone velocity
-        z_vel_ms = `zSpeed(m/s)`,
-        x_vel_ms = `xSpeed(m/s)`,
-        y_vel_ms = `ySpeed(m/s)`,
-        xy_vel_ms = `speed(m/s)`,
-        # rename drone displacement
-        z_disp_m = `height_above_takeoff(meters)`,
+        z_acc_mss = (
+            z_vel_ms -
+            lag(z_vel_ms, default = first(z_vel_ms))) /
+            0.1,
+        xy_acc_mss = (
+            xy_vel_ms -
+            lag(xy_vel_ms, default = first(xy_vel_ms))) /
+            0.1,
         # rename drone heading
         heading_d = `compass_heading(degrees)`,
+        # rename drone displacement
+        z_disp_m = `height_above_takeoff(meters)`,
         # rename drone altitude
         drone_latitude_d = latitude,
         drone_longitude_d = longitude,
@@ -280,15 +293,14 @@ data_aug <- data %>%
                 `datetime(utc)` * 60 * 60 * 24,
                 origin = "1899/12/30 0:00:00.00",
                 tz = "australia/queensland")),
+        # subtract 1 hour from the incorrect times
+        datetime_aest = case_when(
+            test %in% incorrect_time  & flight != 0 ~ datetime_aest - 60 * 60,
+            TRUE ~ datetime_aest),
         # add month integer
         month_aest = month(datetime_aest),
         # add date
         date_aest = as.Date(datetime_aest, tz = "australia/queensland"),
-        # add migration prep
-        migration_prep = (
-            case_when(
-                month_aest > 2 | month_aest < 6 ~ "yes",
-                TRUE ~ "no")),
         # rename tide height
         tide_height_m = `tide height (m)`,
         # rename video time
@@ -301,8 +313,9 @@ data_aug <- data %>%
         cloud_cover_p = `cloud cover (%)`,
         # rename wind speed
         wind_speed_ms = `wind speed (m/s)`,
-        # rename wind direction
-        wind_dir_d = `wind direction (degrees)`,
+        # rename wind direction and convert to same coordinate system
+        wind_dir_d = (`wind direction (degrees)` + 180) %% 360,
+        # wind_dir_d = `wind direction (degrees)`,
         # rename approach type
         approach_type = `approach type`) %>%
     # pivot long so that each species is on a different row
@@ -321,7 +334,10 @@ data_aug <- data %>%
     merge(., sci_com, all.x = TRUE) %>%
     # drop species bird
     filter(species != "bird") %>%
+    # drop data where alternate disturbance occured
+    filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # convert behaviour to binary
+    drop_na(behaviour) %>%
     mutate(
         # convert behaviour to binary
         behaviour = case_when(behaviour == "nominal" ~ 0, TRUE ~ 1),
@@ -335,24 +351,32 @@ data_aug <- data %>%
         lat_rnd = round(lat, 2),
         lon_rnd = round(long, 2),
         # add in bearing between drone and birds
-        bearing  = (
+        bearing_d  = (
             (180 / pi) * atan2(
-                cos((pi / 180) * drone_latitude_d) *
-                sin((pi / 180) * (drone_longitude_d - long)),
                 cos((pi / 180) * lat) *
-                sin((pi / 180) * drone_latitude_d) -
-                sin((pi / 180) * lat) *
+                sin((pi / 180) * (long - drone_longitude_d)),
                 cos((pi / 180) * drone_latitude_d) *
-                cos((pi / 180) * (drone_longitude_d - long)))),
+                sin((pi / 180) * lat) -
+                sin((pi / 180) * drone_latitude_d) *
+                cos((pi / 180) * lat) *
+                cos((pi / 180) * (long - drone_longitude_d)))),
+        # angle between direction of travel and bearing to birds
+        travel_dir_d = (
+            heading_d -
+            (180 / pi) *
+            atan2(`ySpeed(m/s)`, `xSpeed(m/s)`)) %%
+            360,
+        rel_dir_travel_d = (travel_dir_d - bearing_d) %% 360,
         # add in relative wind direction
-        rel_wind_dir_d = (
-            abs(
-                abs(bearing - wind_dir_d) -
-                360 * abs(round((bearing - wind_dir_d) / 360))))) %>%
+        drone_rel_wind_dir_d = (travel_dir_d - wind_dir_d) %% 360) %>%
     # add location
     merge(., gps_loc, all.x = TRUE) %>%
     # add previous low tide time
     merge(., loc_low, all.x = TRUE) %>%
+    filter(datetime_aest > prev_low_tide) %>%
+    group_by(test, flight, video_time_s, species) %>%
+    arrange(desc(prev_low_tide)) %>%
+    slice(1) %>%
     # add time since low tide
     mutate(hrs_since_low_tide = as.numeric(difftime(
         datetime_aest,
@@ -369,7 +393,6 @@ data_aug <- data %>%
         flight,
         flock_number,
         datetime_aest,
-        date_aest,
         prev_low_tide,
         hrs_since_low_tide,
         location,
@@ -379,9 +402,8 @@ data_aug <- data %>%
         cloud_cover_p,
         wind_speed_ms,
         wind_dir_d,
-        rel_wind_dir_d,
+        drone_rel_wind_dir_d,
         drone,
-        approach_type,
         species,
         common_name,
         behaviour,
@@ -389,9 +411,13 @@ data_aug <- data %>%
         lat,
         long,
         notes,
+        drone_latitude_d,
+        drone_longitude_d,
+        travel_dir_d,
+        heading_d,
+        bearing_d,
+        rel_dir_travel_d,
         z_acc_mss,
-        x_acc_mss,
-        y_acc_mss,
         xy_acc_mss,
         z_vel_ms,
         x_vel_ms,
@@ -399,13 +425,9 @@ data_aug <- data %>%
         xy_vel_ms,
         z_disp_m,
         xy_disp_m,
-        heading_d,
-        drone_latitude_d,
-        drone_longitude_d,
         eastern_curlew_abundance,
         eastern_curlew_presence,
-        month_aest,
-        migration_prep)
+        month_aest)
 
 ##################
 #### Save CSV ####
