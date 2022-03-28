@@ -37,21 +37,18 @@ data_clean <- read_csv(choose.files(), guess_max = 1000000)
 #### Data Preparation ####
 ##########################
 data_fit <- data_clean %>%
-    # set start time to takeoff
-    group_by(test, flight, species) %>%
-    mutate(video_time_s = round(video_time_s - first(video_time_s), 1)) %>%
     # id is identifier for each test, flight, species
     group_by(test, flight, species) %>%
     mutate(id = cur_group_id()) %>%
-    # end of test is when birds fly, drone lands, or recording finishes
+    # test valid if drone is logging GPS and video is on
     filter(!is.na(xy_disp_m)) %>%
+    filter(drone_latitude_d != 0 | drone_latitude_d != 0) %>%
     filter(!is.na(video_time_s)) %>%
+    # set start time to drone launch
+    mutate(video_time_s = round(video_time_s - first(video_time_s), 1)) %>%
+    # test ends if birds take off
     group_by(test, flight, species, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
-    # filter
-    # filter(
-    #     common_name == "eastern curlew" |
-    #     eastern_curlew_presence == FALSE) %>%
     # set up dataset for pam
     group_by(test, flight, species) %>%
     mutate(
@@ -64,9 +61,7 @@ data_fit <- data_clean %>%
             TRUE ~ behaviour)) %>%
     drop_na(tend) %>%
     # keep only useful columns
-    select(
-        - notes
-    )
+    select(- notes)
 
 summary(data_fit)
 
@@ -82,10 +77,14 @@ fit <- gam(
 
     ## drone
     drone +
+
+    ## approach
     s(z_disp_m) +
     s(xy_disp_m) +
     s(z_vel_ms) +
     s(xy_vel_ms) +
+    s(rel_dir_travel_d, bs = "cc") +
+    # s(rel_dir_travel_d, bs = "cc", by = xy_vel_ms) +
     s(z_acc_mss) +
     s(xy_acc_mss) +
 
@@ -95,9 +94,12 @@ fit <- gam(
     s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
-    s(rel_wind_dir_d) +
+    s(drone_rel_wind_dir_d, bs = "cc") +
+    # s(drone_rel_wind_dir_d, bs = "cc", by = wind_speed_ms) +
     s(cloud_cover_p),
-    data = data_pam,
+
+    ## model
+    data = data_fit,
     # family = poisson(),
     family = binomial(),
     offset = offset)
@@ -109,7 +111,7 @@ summary(fit)
 ###########################
 
 saveRDS(fit, paste0("drone-induced-bird-disturbance-gam-", Sys.Date(), ".rds"))
-fit <- readRDS("./models/drone-induced-bird-disturbance-gam-2022-03-25.rds")
+# fit <- readRDS("./models/drone-induced-bird-disturbance-gam-2022-03-25.rds")
 
 #########################
 #### Create New Data ####
@@ -152,7 +154,7 @@ new_data <- function(colname) {
 predictors <- c(
     "tend",
     "common_name",
-    # "eastern_curlew_presence",
+    "eastern_curlew_presence",
     "count",
     "flock_number",
     "drone",
@@ -184,7 +186,6 @@ plot_p_term <- function(colname) {
     # ylim(-10, 10) +
     {if(col_type == "character") {
         geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper))}} +
-
     {if(col_type == "double") {
         geom_line()}} +
     {if(col_type == "double") {

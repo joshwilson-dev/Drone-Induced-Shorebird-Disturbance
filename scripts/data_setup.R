@@ -10,6 +10,9 @@
 #### Setup ####
 ###############
 
+# Clear Environment
+rm(list = ls())
+
 # Install Packages
 packages <- c("tidyverse", "lubridate")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
@@ -25,9 +28,6 @@ if (length(new_packages)) {
 
 # Import Packages
 lapply(packages, require, character.only = TRUE)
-
-# Clear Environment
-rm(list = ls())
 
 # Import Data
 data <- read_csv(choose.files(), guess_max = 100000)
@@ -257,24 +257,23 @@ data_aug <- data %>%
     arrange(`video time (seconds)`) %>%
     mutate(
         # set zspeed to zero if it's NA, because it's needed for acceleration
-        `zSpeed(m/s)` = case_when(is.na(`zSpeed(m/s)`) ~ 0, T ~ `zSpeed(m/s)`),
-        `xSpeed(m/s)` = case_when(is.na(`xSpeed(m/s)`) ~ 0, T ~ `xSpeed(m/s)`),
-        `ySpeed(m/s)` = case_when(is.na(`ySpeed(m/s)`) ~ 0, T ~ `ySpeed(m/s)`),
-        `speed(m/s)` = case_when(is.na(`speed(m/s)`) ~ 0, T ~ `speed(m/s)`),
+        z_vel_ms = case_when(is.na(`zSpeed(m/s)`) ~ 0, T ~ `zSpeed(m/s)`),
+        x_vel_ms = case_when(is.na(`xSpeed(m/s)`) ~ 0, T ~ `xSpeed(m/s)`),
+        y_vel_ms = case_when(is.na(`ySpeed(m/s)`) ~ 0, T ~ `ySpeed(m/s)`),
+        xy_vel_ms = case_when(is.na(`speed(m/s)`) ~ 0, T ~ `speed(m/s)`),
         # calculate drone acceleration
-        z_acc_mss = (`zSpeed(m/s)` - lag(`zSpeed(m/s)`, default = 0)) / 0.1,
-        x_acc_mss = (`xSpeed(m/s)` - lag(`xSpeed(m/s)`, default = 0))  / 0.1,
-        y_acc_mss = (`ySpeed(m/s)` - lag(`ySpeed(m/s)`, default = 0))  / 0.1,
-        xy_acc_mss = (`speed(m/s)` - lag(`speed(m/s)`, default = 0))  / 0.1,
-        # rename drone velocity
-        z_vel_ms = `zSpeed(m/s)`,
-        x_vel_ms = `xSpeed(m/s)`,
-        y_vel_ms = `ySpeed(m/s)`,
-        xy_vel_ms = `speed(m/s)`,
-        # rename drone displacement
-        z_disp_m = `height_above_takeoff(meters)`,
+        z_acc_mss = (
+            z_vel_ms -
+            lag(z_vel_ms, default = first(z_vel_ms))) /
+            0.1,
+        xy_acc_mss = (
+            xy_vel_ms -
+            lag(xy_vel_ms, default = first(xy_vel_ms))) /
+            0.1,
         # rename drone heading
         heading_d = `compass_heading(degrees)`,
+        # rename drone displacement
+        z_disp_m = `height_above_takeoff(meters)`,
         # rename drone altitude
         drone_latitude_d = latitude,
         drone_longitude_d = longitude,
@@ -314,8 +313,9 @@ data_aug <- data %>%
         cloud_cover_p = `cloud cover (%)`,
         # rename wind speed
         wind_speed_ms = `wind speed (m/s)`,
-        # rename wind direction
-        wind_dir_d = `wind direction (degrees)`,
+        # rename wind direction and convert to same coordinate system
+        wind_dir_d = (`wind direction (degrees)` + 180) %% 360,
+        # wind_dir_d = `wind direction (degrees)`,
         # rename approach type
         approach_type = `approach type`) %>%
     # pivot long so that each species is on a different row
@@ -351,20 +351,24 @@ data_aug <- data %>%
         lat_rnd = round(lat, 2),
         lon_rnd = round(long, 2),
         # add in bearing between drone and birds
-        bearing  = (
+        bearing_d  = (
             (180 / pi) * atan2(
-                cos((pi / 180) * drone_latitude_d) *
-                sin((pi / 180) * (drone_longitude_d - long)),
                 cos((pi / 180) * lat) *
-                sin((pi / 180) * drone_latitude_d) -
-                sin((pi / 180) * lat) *
+                sin((pi / 180) * (long - drone_longitude_d)),
                 cos((pi / 180) * drone_latitude_d) *
-                cos((pi / 180) * (drone_longitude_d - long)))),
+                sin((pi / 180) * lat) -
+                sin((pi / 180) * drone_latitude_d) *
+                cos((pi / 180) * lat) *
+                cos((pi / 180) * (long - drone_longitude_d)))),
+        # angle between direction of travel and bearing to birds
+        travel_dir_d = (
+            heading_d -
+            (180 / pi) *
+            atan2(`ySpeed(m/s)`, `xSpeed(m/s)`)) %%
+            360,
+        rel_dir_travel_d = (travel_dir_d - bearing_d) %% 360,
         # add in relative wind direction
-        rel_wind_dir_d = (
-            abs(
-                abs(bearing - wind_dir_d) -
-                360 * abs(round((bearing - wind_dir_d) / 360))))) %>%
+        drone_rel_wind_dir_d = (travel_dir_d - wind_dir_d) %% 360) %>%
     # add location
     merge(., gps_loc, all.x = TRUE) %>%
     # add previous low tide time
@@ -398,7 +402,7 @@ data_aug <- data %>%
         cloud_cover_p,
         wind_speed_ms,
         wind_dir_d,
-        rel_wind_dir_d,
+        drone_rel_wind_dir_d,
         drone,
         species,
         common_name,
@@ -407,9 +411,13 @@ data_aug <- data %>%
         lat,
         long,
         notes,
+        drone_latitude_d,
+        drone_longitude_d,
+        travel_dir_d,
+        heading_d,
+        bearing_d,
+        rel_dir_travel_d,
         z_acc_mss,
-        x_acc_mss,
-        y_acc_mss,
         xy_acc_mss,
         z_vel_ms,
         x_vel_ms,
@@ -417,9 +425,6 @@ data_aug <- data %>%
         xy_vel_ms,
         z_disp_m,
         xy_disp_m,
-        heading_d,
-        drone_latitude_d,
-        drone_longitude_d,
         eastern_curlew_abundance,
         eastern_curlew_presence,
         month_aest)
