@@ -266,10 +266,15 @@ data_aug <- data %>%
             z_vel_ms -
             lag(z_vel_ms, default = first(z_vel_ms))) /
             0.1,
-        xy_acc_mss = (
-            xy_vel_ms -
-            lag(xy_vel_ms, default = first(xy_vel_ms))) /
+        x_acc_mss = (
+            x_vel_ms -
+            lag(x_vel_ms, default = first(x_vel_ms))) /
             0.1,
+        y_acc_mss = (
+            y_vel_ms -
+            lag(y_vel_ms, default = first(y_vel_ms))) /
+            0.1,
+        xyz_acc_mss = (z_acc_mss**2 + x_acc_mss**2 + y_acc_mss**2)**0.5,
         # rename drone heading
         heading_d = `compass_heading(degrees)`,
         # rename drone displacement
@@ -315,7 +320,6 @@ data_aug <- data %>%
         wind_speed_ms = `wind speed (m/s)`,
         # rename wind direction and convert to same coordinate system
         wind_dir_d = (`wind direction (degrees)` + 180) %% 360,
-        # wind_dir_d = `wind direction (degrees)`,
         # rename approach type
         approach_type = `approach type`) %>%
     # pivot long so that each species is on a different row
@@ -347,6 +351,7 @@ data_aug <- data %>%
             (lat - drone_latitude_d))^2 +
             ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
             (long - drone_longitude_d))) ^ 2)),
+        xyz_disp_m = (xy_disp_m**2 + z_disp_m**2)**0.5,
         # round latitude and longitude for location
         lat_rnd = round(lat, 2),
         lon_rnd = round(long, 2),
@@ -361,14 +366,17 @@ data_aug <- data %>%
                 cos((pi / 180) * lat) *
                 cos((pi / 180) * (long - drone_longitude_d)))),
         # angle between direction of travel and bearing to birds
-        travel_dir_d = (
-            heading_d -
-            (180 / pi) *
-            atan2(`ySpeed(m/s)`, `xSpeed(m/s)`)) %%
-            360,
-        rel_dir_travel_d = (travel_dir_d - bearing_d) %% 360,
+        travel_dir_d = ((180 / pi) * atan2(y_vel_ms, x_vel_ms)) %% 360,
+        bird_rel_dir_travel_d = (travel_dir_d - bearing_d) %% 360,
+        # find drone velocity relative to birds
+        xb_vel_ms = (
+            x_vel_ms * cos((pi / 180) * bearing_d) +
+            y_vel_ms * sin((pi / 180) * bearing_d)),
+        yb_vel_ms = (
+            y_vel_ms * cos((pi / 180) * bearing_d) -
+            x_vel_ms * sin((pi / 180) * bearing_d)),
         # add in relative wind direction
-        drone_rel_wind_dir_d = (travel_dir_d - wind_dir_d) %% 360) %>%
+        travel_rel_wind_dir_d = (wind_dir_d - travel_dir_d) %% 360) %>%
     # add location
     merge(., gps_loc, all.x = TRUE) %>%
     # add previous low tide time
@@ -402,7 +410,7 @@ data_aug <- data %>%
         cloud_cover_p,
         wind_speed_ms,
         wind_dir_d,
-        drone_rel_wind_dir_d,
+        travel_rel_wind_dir_d,
         drone,
         species,
         common_name,
@@ -416,15 +424,17 @@ data_aug <- data %>%
         travel_dir_d,
         heading_d,
         bearing_d,
-        rel_dir_travel_d,
-        z_acc_mss,
-        xy_acc_mss,
+        bird_rel_dir_travel_d,
+        xyz_acc_mss,
         z_vel_ms,
         x_vel_ms,
         y_vel_ms,
         xy_vel_ms,
+        xb_vel_ms,
+        yb_vel_ms,
         z_disp_m,
         xy_disp_m,
+        xyz_disp_m,
         eastern_curlew_abundance,
         eastern_curlew_presence,
         month_aest)
