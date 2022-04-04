@@ -60,26 +60,26 @@ sci_com <- data.frame(
         "vanellus miles",
         "xenus cinereus"),
     common_name = c(
-        "intermediate egret",
-        "great knot",
-        "silver gull",
-        "black swan",
-        "little egret",
-        "white-faced heron",
-        "gull-billed tern",
-        "pied oystercatcher",
-        "pied stilt",
-        "caspian tern",
-        "bar-tailed godwit",
-        "eastern curlew",
+        "intermediate_egret",
+        "great_knot",
+        "silver_gull",
+        "black_swan",
+        "little_egret",
+        "white_faced_heron",
+        "gull_billed_tern",
+        "pied_oystercatcher",
+        "pied_stilt",
+        "caspian_tern",
+        "bar_tailed_godwit",
+        "eastern_curlew",
         "whimbrel",
-        "australian pelican",
-        "royal spoonbill",
-        "australian white ibis",
-        "grey-tailed tattler",
-        "marsh sandpiper",
-        "masked lapwing",
-        "terek sandpiper"))
+        "australian_pelican",
+        "royal_spoonbill",
+        "australian_white_ibis",
+        "grey_tailed_tattler",
+        "marsh_sandpiper",
+        "masked_lapwing",
+        "terek_sandpiper"))
 
 # GPS data to location label
 gps_loc <- data.frame(
@@ -252,7 +252,7 @@ incorrect_time <- c(
     54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 68, 69)
 
 # creating clean dataset
-data_aug <- data %>%
+data_long <- data %>%
     group_by(test, flight) %>%
     arrange(`video time (seconds)`) %>%
     mutate(
@@ -282,16 +282,6 @@ data_aug <- data %>%
         # rename drone altitude
         drone_latitude_d = latitude,
         drone_longitude_d = longitude,
-        # add eastern curlew abundance
-        eastern_curlew_abundance = (
-            case_when(
-                is.na(`numenius madagascariensis count`) ~ 0,
-                TRUE ~ `numenius madagascariensis count`)),
-        # add eastern curlew presence
-        eastern_curlew_presence = (
-            case_when(
-                is.na(`numenius madagascariensis behaviour`) ~ FALSE,
-                TRUE ~ TRUE)),
         # add datetime in aest
         datetime_aest = (
             as_datetime(
@@ -334,10 +324,10 @@ data_aug <- data %>%
         names_pattern = "(.+) (.+)",
         names_transform = list(species = as.factor),
         values_drop_na = TRUE) %>%
-    # add common name
-    merge(., sci_com, all.x = TRUE) %>%
     # drop species bird
     filter(species != "bird") %>%
+    # add common name
+    merge(., sci_com, all.x = TRUE) %>%
     # drop data where alternate disturbance occured
     filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # convert behaviour to binary
@@ -372,11 +362,15 @@ data_aug <- data %>%
         xb_vel_ms = (
             x_vel_ms * cos((pi / 180) * bearing_d) +
             y_vel_ms * sin((pi / 180) * bearing_d)),
-        yb_vel_ms = (
+        # yb symmetric
+        yb_vel_ms = (abs(
             y_vel_ms * cos((pi / 180) * bearing_d) -
-            x_vel_ms * sin((pi / 180) * bearing_d)),
+            x_vel_ms * sin((pi / 180) * bearing_d))),
         # add in relative wind direction
-        travel_rel_wind_dir_d = (wind_dir_d - travel_dir_d) %% 360) %>%
+        travel_rel_wind_dir_d = case_when(
+            (wind_dir_d - travel_dir_d) %% 360 > 180  ~
+            abs((wind_dir_d - travel_dir_d) %% 360) - 360,
+            TRUE ~ (wind_dir_d - travel_dir_d) %% 360)) %>%
     # add location
     merge(., gps_loc, all.x = TRUE) %>%
     # add previous low tide time
@@ -435,15 +429,39 @@ data_aug <- data %>%
         z_disp_m,
         xy_disp_m,
         xyz_disp_m,
-        eastern_curlew_abundance,
-        eastern_curlew_presence,
-        month_aest)
+        month_aest) %>%
+    # id is identifier for each test, flight, species
+    group_by(test, flight, species) %>%
+    mutate(id = cur_group_id()) %>%
+    # test valid if drone is logging GPS and video is on
+    filter(!is.na(xy_disp_m)) %>%
+    filter(drone_latitude_d != 0 | drone_latitude_d != 0) %>%
+    filter(!is.na(video_time_s)) %>%
+    # set start time to drone launch
+    mutate(video_time_s = round(video_time_s - first(video_time_s), 1)) %>%
+    # add id for merge
+    group_by(test, flight, video_time_s) %>%
+    mutate(col_id = cur_group_id()) %>%
+    # rename video_time
+    rename(time = video_time_s)
+
+# add back on species counts
+data_wide <- data_long %>%
+    pivot_wider(
+        id_cols = col_id,
+        names_from = common_name,
+        names_prefix = "count_",
+        values_from = count) %>%
+    replace(is.na(.), 0)
+
+data_complete <- merge(data_wide, data_long) %>%
+    select(-col_id)
 
 ##################
 #### Save CSV ####
 ##################
 
 write.csv(
-    data_aug,
+    data_complete,
     "shorebird-disturbance-clean.csv",
     row.names = FALSE)

@@ -15,7 +15,7 @@
 rm(list = ls())
 
 # Install Packages
-packages <- c("tidyverse", "mgcv", "visreg", "pammtools", "gridExtra")
+packages <- c("tidyverse", "mgcv", "pammtools", "gridExtra")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -37,40 +37,19 @@ data <- read_csv(choose.files(), guess_max = 1000000)
 #### Data Preparation ####
 ##########################
 
-data_clean <- data %>%
-    # id is identifier for each test, flight, species
-    group_by(test, flight, species) %>%
-    mutate(id = cur_group_id()) %>%
-    # test valid if drone is logging GPS and video is on
-    filter(!is.na(xy_disp_m)) %>%
-    filter(drone_latitude_d != 0 | drone_latitude_d != 0) %>%
-    filter(!is.na(video_time_s)) %>%
-    # set start time to drone launch
-    mutate(video_time_s = round(video_time_s - first(video_time_s), 1)) %>%
+data_fit <- data %>%
+    # degrade data to log once a second for convergence
+    filter(time %% 1 == 0) %>%
     # test ends if birds take off
     group_by(test, flight, species, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
-    # we can take the abs of yb_vel_ms, because it's the same either way
-    mutate(yb_vel_ms = abs(yb_vel_ms)) %>%
-    # can also make wind dir symmetric because left and right are the same
-    mutate(travel_rel_wind_dir_d = case_when(
-        travel_rel_wind_dir_d > 180 ~ abs(travel_rel_wind_dir_d - 360),
-        TRUE ~ travel_rel_wind_dir_d)) %>%
-    # convert to factors
+    # add end time and outcome
+    group_by(id) %>%
     mutate(
-        eastern_curlew_presence = as.factor(eastern_curlew_presence),
-        video_time_ms = as.factor(video_time_s * 10),
-        location = as.factor(location),
-        drone = as.factor(drone),
-        common_name = as.factor(common_name)) %>%
-    # keep only useful columns
-    select(- notes)
+        end_time = max(time),
+        outcome = max(behaviour))
 
-data_fit <- data_clean %>%
-    # remove times except if a flight event occurred in at least one approach
-    group_by(video_time_s) %>%
-    filter(!all(behaviour == 0)) %>%
-    droplevels()
+summary(data_fit)
 
 # Save Data Fit
 write.csv(
@@ -78,64 +57,124 @@ write.csv(
     "survival_function_fit_data.csv",
     row.names = FALSE)
 
-summary(data_fit)
+# getting the initial conditions and the time to event
+event_df <- data_fit %>%
+    select(
+        id,
+        common_name,
+        count,
+        count_eastern_curlew,
+        flock_number,
+        drone,
+        z_disp_m,
+        xy_disp_m,
+        z_vel_ms,
+        xb_vel_ms,
+        yb_vel_ms,
+        xyz_acc_mss,
+        location,
+        month_aest,
+        hrs_since_low_tide,
+        temperature_dc,
+        wind_speed_ms,
+        travel_rel_wind_dir_d,
+        cloud_cover_p,
+        outcome,
+        end_time) %>%
+    group_by(id) %>%
+    slice(n()) %>%
+    ungroup()
+
+# time-dependent covariates dataset
+tdc_df <- data_fit %>%
+    select(
+        id,
+        time,
+        z_disp_m,
+        xy_disp_m,
+        z_vel_ms,
+        xb_vel_ms,
+        yb_vel_ms,
+        xyz_acc_mss,
+        hrs_since_low_tide,
+        travel_rel_wind_dir_d)
+
+# data transformation note that the latency is dictated by the 5
+ped <- as_ped(
+    list(event_df, tdc_df),
+    Surv(end_time, outcome) ~ . + cumulative(
+        latency(time),
+        z_disp_m,
+        xy_disp_m,
+        z_vel_ms,
+        xb_vel_ms,
+        yb_vel_ms,
+        xyz_acc_mss,
+        hrs_since_low_tide,
+        travel_rel_wind_dir_d,
+        tz_var = "time",
+        ll_fun = function(t, tz) t >= tz &  t <= tz + 0),
+  id = "id")
+ped$time_latency <- ped$time_latency * ped$LL
 
 ###################
 #### Fit Model ####
 ###################
 
-fit <- bam(
-    behaviour ~
-    video_time_ms - 1 +
+mod <- gam(
+    ped_status ~
+    s(tend) +
 
-    ## target
-    s(common_name, bs = "fs") +
-    s(eastern_curlew_presence, bs = "fs") +
+    # target
+    common_name +
+    s(count_eastern_curlew) +
     s(flock_number, bs = "re") +
     s(count) +
 
-    ## drone
-    s(drone, bs = "fs") +
+    # drone
+    drone +
 
-    ## approach
+    # approach
+    # te(time_latency, z_disp_m, xy_disp_m, by = LL) +
     ti(z_disp_m, xy_disp_m) +
-    # ti(z_vel_ms, xyz_disp_m) +
-    # ti(xb_vel_ms, xyz_disp_m) +
-    # ti(yb_vel_ms, xyz_disp_m) +
-    # ti(xyz_acc_mss, xyz_disp_m) +
-    # s(xyz_disp_m) +
     s(z_disp_m) +
     s(xy_disp_m) +
+    # te(time_latency, z_vel_ms, by = LL) +
+    # te(time_latency, xb_vel_ms, by = LL) +
+    # te(time_latency, yb_vel_ms, by = LL) +
+    # te(time_latency, xyz_acc_mss, by = LL) +
     s(z_vel_ms) +
     s(xb_vel_ms) +
     s(yb_vel_ms) +
     s(xyz_acc_mss) +
 
-    ## environment
+    # environment
     # s(location, bs = "re") +
     s(month_aest, bs = "cc", k = 7) +
+    # te(time_latency, hrs_since_low_tide, bs = "cc", by = LL) +
     s(hrs_since_low_tide, bs = "cc") +
     s(temperature_dc) +
     s(wind_speed_ms) +
+    # te(time_latency, travel_rel_wind_dir_d, bs = "cc", by = LL) +
     s(travel_rel_wind_dir_d, bs = "cc") +
     s(cloud_cover_p),
-
+    method = "REML",
+    offset = offset,
     family = poisson(),
-    data = data_fit)
-    # method = "REML")
+    data = ped)
 
-################################
-#### Save/Load Fitted Model ####
-################################
+summary(mod)
 
 save_prefix <- "drone-induced-bird-disturbance-gam-"
-saveRDS(fit, paste0(save_prefix, format(Sys.time(), "%d-%m-%y_%H-%M"), ".rds"))
-fit <- readRDS(choose.files())
-visreg(fit, "drone")
+saveRDS(mod, paste0(save_prefix, format(Sys.time(), "%d-%m-%y_%H-%M"), ".rds"))
+# fit <- readRDS(choose.files())
 
 #########################
 #### Analysis of fit ####
 #########################
+
+gg_tensor(mod, ci = TRUE) + xlab("latency (s)")
+
 summary(fit)
 
 # Create New Data
