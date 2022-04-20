@@ -14,7 +14,7 @@
 rm(list = ls())
 
 # Install Packages
-packages <- c("tidyverse", "lubridate")
+packages <- c("tidyverse", "lubridate", "zoo")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -443,7 +443,11 @@ data_long <- data %>%
     group_by(test, flight, video_time_s) %>%
     mutate(col_id = cur_group_id()) %>%
     # rename video_time
-    rename(time = video_time_s)
+    rename(time = video_time_s) %>%
+    # smooth acceleration over 0.5s
+    group_by(id) %>%
+    arrange(time) %>%
+    mutate(xyz_acc_mss_avg = rollapply(xyz_acc_mss, 5, mean, fill = "extend"))
 
 # add back on species counts
 data_wide <- data_long %>%
