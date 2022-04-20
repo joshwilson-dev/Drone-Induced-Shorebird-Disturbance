@@ -447,7 +447,7 @@ data_long <- data %>%
     # smooth acceleration over 0.5s
     group_by(id) %>%
     arrange(time) %>%
-    mutate(xyz_acc_mss_avg = rollapply(xyz_acc_mss, 5, mean, fill = "extend"))
+    mutate(xyz_acc_mss = rollapply(xyz_acc_mss, 5, mean, fill = "extend"))
 
 # add back on species counts
 data_wide <- data_long %>%

@@ -36,33 +36,18 @@ lapply(packages, require, character.only = TRUE)
 # import data
 data <- read_csv(choose.files(), guess_max = 1000000)
 
-trial <- data %>%
-    filter(test == 157) %>%
-    filter(flight == 3)
-
-ggplot(trial, aes(x = time)) +
-geom_line(aes(y = xy_disp_m / 100)) +
-geom_line(aes(y = z_disp_m  / 100)) +
-geom_line(aes(y = xyz_acc_mss_2savg)) +
-geom_line(aes(y = behaviour))
 # prepare train and test data in ped format
 prepare_data <- function(df, istrain) {
+    data_clean <- df %>%
+        # degrade data to seconds for faster convergence
+        filter(time %% 1 == 0)
+
     if (istrain) {
-        df <- df %>%
-            filter(time %% 1 == 0) %>%
-            group_by(test, flight, species, behaviour) %>%
+        data_clean <- data_clean %>%
             # test ends if birds take flight
+            group_by(test, flight, species, behaviour) %>%
             filter(behaviour == 0 | row_number() <= 1)
     }
-
-    # acceleration seems to occur ~ 3s before reaction
-    data_clean <- df %>%
-        filter(time %% 1 == 0) %>%
-        # mutate(time = time * 10) %>%
-        group_by(test, flight, species) %>%
-        mutate(
-            xyz_acc_mss_lag =
-            lag(xyz_acc_mss_2savg, 3, default = first(xyz_acc_mss_2savg)))
 
     event_df <- data_clean %>%
         # add end time and status
@@ -70,7 +55,6 @@ prepare_data <- function(df, istrain) {
         mutate(
             end_time = max(time),
             status = max(behaviour)) %>%
-        group_by(id) %>%
         filter(row_number() == 1) %>%
         select(
             id,
@@ -81,12 +65,13 @@ prepare_data <- function(df, istrain) {
             status,
             common_name,
             count_eastern_curlew,
+            count_bar_tailed_godwit,
+            count_pied_stilt,
             drone,
             flock_number,
             z_disp_m,
             xy_disp_m,
-            xyz_acc_mss_2savg,
-            xyz_acc_mss_lag)
+            xyz_acc_mss)
 
     tdc_df <- data_clean %>%
         group_by(id) %>%
@@ -99,17 +84,18 @@ prepare_data <- function(df, istrain) {
             behaviour,
             common_name,
             count_eastern_curlew,
+            count_bar_tailed_godwit,
+            count_pied_stilt,
             drone,
             flock_number,
             z_disp_m,
             xy_disp_m,
-            xyz_acc_mss_2savg,
-            xyz_acc_mss_lag)
+            xyz_acc_mss)
 
     data_ped <- as_ped(
         data = list(event_df, tdc_df),
         formula = Surv(end_time, status) ~ . +
-        concurrent(z_disp_m, xy_disp_m, xyz_acc_mss_lag, xyz_acc_mss_2savg, tz_var = "time"),
+        concurrent(z_disp_m, xy_disp_m, xyz_acc_mss, tz_var = "time"),
         id = "id")
     return(data_ped)
 }
@@ -131,20 +117,17 @@ fit <- gam(
     # target
     common_name +
     s(count_eastern_curlew) +
+    s(count_pied_stilt) +
     s(flock_number, bs = "re") +
-    # s(count) +
 
     # drone
     drone +
 
     # approach
-    # s(z_disp_m) +
-    # s(xy_disp_m) +
-    te(z_disp_m, xy_disp_m) +
-    # s(xyz_acc_mss_lag),
-    # s(xyz_acc_mss_lag, k = 4),
-    xyz_acc_mss_lag,
-    # te(z_vel_ms, xy_disp_m) +
+    s(z_disp_m) +
+    s(xy_disp_m) +
+    # te(z_disp_m, xy_disp_m) +
+    s(xyz_acc_mss),
     # s(z_vel_ms) +
     # s(xb_vel_ms) +
     # s(yb_vel_ms) +
@@ -251,7 +234,10 @@ new_data <- function(variable1, variable2) {
             filter(common_name != "eastern_curlew")
         new_dataframe <- bind_rows(new_dataframe, ec_dataframe)
     }
-    assign(paste0(variable1, "_", variable2, "_df"), new_dataframe, envir = .GlobalEnv)
+    assign(
+        paste0(
+            variable1, "_", variable2, "_df"),
+            new_dataframe, envir = .GlobalEnv)
 }
 
 predictors <- data.frame(
@@ -259,27 +245,25 @@ predictors <- data.frame(
         "common_name",
         "drone",
         "count_eastern_curlew",
+        "count_pied_stilt",
         "flock_number",
-        # "count",
         "z_disp_m",
-        # "xyz_acc_mss_2savg"),
-        "xyz_acc_mss_lag"),
-        # "z_vel_ms",
-        # "xb_vel_ms",
-        # "yb_vel_ms",
-        # "xyz_acc_mss_lag",
-        # "month_aest",
-        # "hrs_since_low_tide",
-        # "temperature_dc",
-        # "wind_speed_ms",
-        # "travel_rel_wind_dir_d",
-        # "cloud_cover_p"),
+        "xyz_acc_mss",
+        "z_vel_ms",
+        "xb_vel_ms",
+        "yb_vel_ms",
+        "month_aest",
+        "hrs_since_low_tide",
+        "temperature_dc",
+        "wind_speed_ms",
+        "travel_rel_wind_dir_d",
+        "cloud_cover_p"),
     variable2 = c(
         NA,
         NA,
         NA,
         NA,
-        "xy_disp_m",
+        NA,
         NA))
         # NA,
         # NA))
@@ -359,6 +343,7 @@ geom_line(aes(y = xy_disp_m / max(xy_disp_m)), colour = "red") +
 geom_line(aes(y = z_disp_m / max(z_disp_m)), colour = "green") +
 geom_line(aes(y = xyz_acc_mss_lag / max(xyz_acc_mss_lag)), colour = "blue") +
 coord_cartesian(ylim = c(0, 1))
+
 ##################################################
 #### Flight Initiation Distance Visualisation ####
 ##################################################
@@ -466,20 +451,10 @@ target_species_list, drone_type) {
     assign("cum_haz_data", df_i, envir = .GlobalEnv)
 }
 
-# altitudes <- seq(10, 120, n = 100)
 altitudes <- seq_range(10:120, n = 20)
 target_birds <- unique(data_ped_train$common_name)
 
-# altitudes <- 10
-# target_birds <- "bar_tailed_godwit"
-
 log_simulator(fit, ref_species, ref, altitudes, target_birds, "mavic 2 pro")
-
-# visualise
-# ggplot(cum_haz_data, aes(x = xy_disp_m, y = z_disp_m, col = cumu_hazard, group = z_disp_m)) +
-# facet_wrap("common_name") +
-# geom_line() +
-# theme(legend.position = "bottom")
 
 fid_95 <- cum_haz_data %>%
     filter(cumu_hazard > 0.95) %>%
