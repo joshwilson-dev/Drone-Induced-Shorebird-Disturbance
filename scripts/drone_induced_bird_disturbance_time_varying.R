@@ -34,13 +34,37 @@ lapply(packages, require, character.only = TRUE)
 ##########################
 
 # import data
-data <- read_csv(choose.files(), guess_max = 1000000)
+data_new <- read_csv(choose.files(), guess_max = 1000000)
+
+# inspect data
+plot <- data_new %>%
+    # filter(common_name ==) %>%
+    filter(test == 157) %>%
+    filter(flight == 3)
+
+ggplot(plot, aes(x = time)) +
+geom_line(aes(y = xy_disp_m / 100), col = "green") +
+geom_line(aes(y = z_disp_m / 100), col = "blue") +
+geom_line(aes(y = xyz_acc_mss), col = "red") +
+geom_line(aes(y = behaviour), col = "orange")
 
 # prepare train and test data in ped format
 prepare_data <- function(df, istrain) {
     data_clean <- df %>%
+        select(-notes) %>%
+        # filter out species for which we don't have much data
+        group_by(common_name) %>%
+        mutate(approaches_species = n_distinct(id)) %>%
+        filter(approaches_species > 20) %>%
         # degrade data to seconds for faster convergence
-        filter(time %% 1 == 0)
+        filter(time %% 1 == 0) %>%
+        # creat presence instead of counts
+        mutate(across(
+            contains("count_"),
+            ~ case_when(. > 0 ~ "true", TRUE ~ "false"),
+            .names = "presence_{col}")) %>%
+        rename_with(~str_remove(., "_count")) %>%
+        mutate(common_name = as.factor(common_name))
 
     if (istrain) {
         data_clean <- data_clean %>%
@@ -55,55 +79,26 @@ prepare_data <- function(df, istrain) {
         mutate(
             end_time = max(time),
             status = max(behaviour)) %>%
-        filter(row_number() == 1) %>%
-        select(
-            id,
-            end_time,
-            test,
-            flight,
-            behaviour,
-            status,
-            common_name,
-            count_eastern_curlew,
-            count_bar_tailed_godwit,
-            count_pied_stilt,
-            drone,
-            flock_number,
-            z_disp_m,
-            xy_disp_m,
-            xyz_acc_mss)
+        filter(row_number() == 1)
 
     tdc_df <- data_clean %>%
         group_by(id) %>%
-        filter(row_number() != n()) %>%
-        select(
-            id,
-            time,
-            test,
-            flight,
-            behaviour,
-            common_name,
-            count_eastern_curlew,
-            count_bar_tailed_godwit,
-            count_pied_stilt,
-            drone,
-            flock_number,
-            z_disp_m,
-            xy_disp_m,
-            xyz_acc_mss)
+        filter(row_number() != n())
 
     data_ped <- as_ped(
         data = list(event_df, tdc_df),
         formula = Surv(end_time, status) ~ . +
-        concurrent(z_disp_m, xy_disp_m, xyz_acc_mss, tz_var = "time"),
+        concurrent(z_disp_m, xy_disp_m, transition, behaviour, tz_var = "time"),
         id = "id")
     return(data_ped)
 }
 
-data_ped_train <- prepare_data(data, TRUE)
-data_ped_test <- prepare_data(data, FALSE)
+data_ped_train <- prepare_data(data_new, TRUE)
+data_ped_test <- prepare_data(data_new, FALSE)
 
-View(head(data_ped_train, 1000))
+data_ped_train_pied_stilt <- data_ped_train %>%
+    filter(common_name == "pied_stilt") %>%
+    filter(presence_eastern_curlew == "false")
 
 ###################
 #### Fit Model ####
@@ -115,32 +110,33 @@ fit <- gam(
     s(tend) +
 
     # target
-    common_name +
-    s(count_eastern_curlew) +
-    s(count_pied_stilt) +
+    # common_name +
+    # presence_eastern_curlew +
+    # presence_pied_stilt +
+    # s(count_eastern_curlew, k = 10) +
+    # s(count_pied_stilt, k = 10) +
     s(flock_number, bs = "re") +
 
     # drone
     drone +
 
     # approach
-    s(z_disp_m) +
-    s(xy_disp_m) +
-    # te(z_disp_m, xy_disp_m) +
-    s(xyz_acc_mss),
+    te(z_disp_m, xy_disp_m),
+    # s(xyz_acc_mss) +
     # s(z_vel_ms) +
     # s(xb_vel_ms) +
     # s(yb_vel_ms) +
 
     # environment
-    # s(month_aest, bs = "cc", k = 5) +
+    # s(month_aest, bs = "cc", k = 8) +
     # s(hrs_since_low_tide, bs = "cc") +
     # s(temperature_dc) +
     # s(wind_speed_ms) +
     # s(travel_rel_wind_dir_d, bs = "cc") +
     # s(cloud_cover_p),
-    data = data_ped_train,
-    family = poisson(),
+    data = data_ped_train_pied_stilt,
+    family = binomial(),
+    method = "REML",
     offset = offset)
 
 # save model
@@ -156,173 +152,206 @@ fit <- readRDS(choose.files())
 
 # check summary
 summary(fit)
+gam.check(fit, rep = 500)
 
 # create dataframes varing each explanatory variable one at a time while
-# holdin others at medium or mode of numerical and character/factor variables
-ref1 <- data_ped_train %>%
-    ungroup() %>%
-    sample_info() %>%
-    mutate(count_eastern_curlew = 0)
+# holding others at medium or mode of numerical and character/factor variables
 
-ref2 <- data_ped_train %>%
-    filter(count_eastern_curlew > 0) %>%
+# spec_counts <- data_ped_train %>%
+#     group_by(common_name) %>%
+#     sample_info() %>%
+#     select(contains("count"), common_name) %>%
+#     arrange(common_name)
+
+spec_presence <- data_ped_train %>%
+    group_by(common_name) %>%
+    sample_info() %>%
+    mutate(pivot_name = common_name) %>%
+    select(common_name, pivot_name) %>%
+    add_column(presence = "true") %>%
+    pivot_wider(
+        names_from = pivot_name,
+        names_prefix = "presence_",
+        values_from = presence) %>%
+    replace(is.na(.), "false")
+
+ref <- data_ped_train %>%
     ungroup() %>%
+    mutate_if(is.numeric, min) %>%
     sample_info()
 
-new_data <- function(variable1, variable2) {
+new_data <- function(var1, var2) {
     # get the original variable data so we can check its type later
-    var_type1 <- typeof(eval(parse(text = paste0("data_ped_train$", variable1))))
+    var_type1 <- typeof(eval(parse(text = paste0("data_ped_train$", var1))))
     print(var_type1)
-    print(paste0(variable1, variable2))
+    print(var1)
     new_dataframe <- data_ped_train %>%
         ungroup() %>%
-        mutate(new_col1 = !!sym(variable1)) %>%
+        mutate(new_col1 = !!sym(var1)) %>%
         # create new data
-        {if (!is.na(variable2)) {
-            mutate(., new_col2 = !!sym(variable2)) %>%
+        {if (!is.na(var2)) {
+            mutate(., new_col2 = !!sym(var2)) %>%
             make_newdata(
                 .,
-                new_col1 = seq_range(!!sym(variable1), n = 100),
-                new_col2 = seq_range(!!sym(variable2), n = 100)) %>%
-            select(-!!sym(variable1)) %>%
-            rename({{ variable1 }} := new_col1) %>%
-            select(-!!sym(variable2)) %>%
-            rename({{ variable2 }} := new_col2) %>%
-            mutate(count_eastern_curlew = case_when(
-                common_name == "eastern_curlew" ~ ref2$count_eastern_curlew,
-                TRUE ~ 0)) %>%
+                new_col1 = seq_range(new_col1, n = 100),
+                new_col2 = seq_range(new_col2, n = 100)) %>%
+                # common_name = unique(common_name)) %>%
+            select(-!!sym(var1)) %>%
+            rename({{ var1 }} := new_col1) %>%
+            select(-!!sym(var2)) %>%
+            rename({{ var2 }} := new_col2) %>%
+            select(-contains("presence")) %>%
+            merge(spec_presence) %>%
+            # mutate(transition = as.logical(transition)) %>%
+            # select(-contains("count")) %>%
+            # merge(spec_counts) %>%
+            # mutate_at(
+            #     vars(starts_with("count_")),
+            #     ~ case_when(
+            #         . != count ~ 0,
+            #         TRUE ~ .)) %>%
             add_term(
                 fit,
-                term = paste0(variable1, ",", variable2),
-                exclude = c("s(flock_number)"),
-                reference = ref1)}
-        else if (var_type1 == "double") {
-            make_newdata(., new_col1 = seq_range(!!sym(variable1), n = 100)) %>%
-            mutate(count_eastern_curlew = case_when(
-                common_name == "eastern_curlew" ~ ref1$count_eastern_curlew,
-                TRUE ~ 0)) %>%
-            select(-!!sym(variable1)) %>%
-            rename({{ variable1 }} := new_col1) %>%
+                term = paste0(var1, ",", var2),
+                exclude = c("s(flock_number)"))}
+        else {
+            {if (var1 == "common_name") {
+                make_newdata(., new_col1 = unique(new_col1)) %>%
+                select(-!!sym(var1)) %>%
+                rename({{ var1 }} := new_col1) %>%
+                select(-contains("presence")) %>%
+                merge(spec_presence)}
+                # select(-contains("count")) %>%
+                # merge(spec_counts) %>%
+                # mutate_at(
+                #     vars(starts_with("count_")),
+                #     ~ case_when(
+                #         . != count ~ 0,
+                #         TRUE ~ .))}
+            # else if (var1 == "xy_disp_m" | var1 == "z_disp_m") {
+            #     make_newdata(
+            #         .,
+            #         new_col1 = seq_range(!!sym(var1), n = 100),
+            #         common_name = unique(common_name)) %>%
+            #     select(-!!sym(var1)) %>%
+            #     rename({{ var1 }} := new_col1) %>%
+            #     select(-contains("count")) %>%
+            #     merge(spec_counts) %>%
+            #     mutate_at(
+            #         vars(starts_with("count_")),
+            #         ~ case_when(
+            #             . != count ~ 0,
+            #             TRUE ~ .))}
+            else if (var_type1 == "character") {
+                make_newdata(., new_col1 = unique(new_col1)) %>%
+                select(-!!sym(var1)) %>%
+                rename({{ var1 }} := new_col1)}
+            else {
+                make_newdata(., new_col1 = seq_range(new_col1, n = 100)) %>%
+                select(-!!sym(var1)) %>%
+                rename({{ var1 }} := new_col1)}} %>%
+            mutate(transition = as.logical(transition)) %>%
             add_term(
                 fit,
-                term = variable1,
-                exclude = c("s(flock_number)"),
-                reference = ref1)}
-        else if (var_type1 == "character") {
-            make_newdata(., new_col1 = unique(!!sym(variable1))) %>%
-            select(-!!sym(variable1)) %>%
-            rename({{ variable1 }} := new_col1) %>%
-            add_term(
-                fit,
-                term = variable1,
-                exclude = c("s(flock_number)"),
-                reference = ref1)}}
-    if (variable1 == "common_name") {
-        ec_dataframe <- data_ped_train %>%
-            ungroup() %>%
-            mutate(new_col1 = ref2$count_eastern_curlew) %>%
-            make_newdata(., new_col1 = c("eastern_curlew")) %>%
-            select(-!!sym(variable1)) %>%
-            rename({{ variable1 }} := new_col1) %>%
-            mutate(count_eastern_curlew = 61.7517) %>%
-            add_term(
-                fit,
-                term = "count_eastern_curlew",
-                exclude = c("s(flock_number)"),
-                reference = ref1)
-        new_dataframe <- new_dataframe %>%
-            filter(common_name != "eastern_curlew")
-        new_dataframe <- bind_rows(new_dataframe, ec_dataframe)
-    }
+                term = var1,
+                exclude = c("s(flock_number)"))}}
     assign(
         paste0(
-            variable1, "_", variable2, "_df"),
+            var1, "_", var2, "_df"),
             new_dataframe, envir = .GlobalEnv)
 }
-
+  
 predictors <- data.frame(
-    variable1 = c(
+    var1 = c(
+        "tend",
         "common_name",
         "drone",
-        "count_eastern_curlew",
-        "count_pied_stilt",
+        # "count_eastern_curlew",
+        # "count_pied_stilt",
+        "presence_eastern_curlew",
+        # "presence_pied_stilt",
         "flock_number",
         "z_disp_m",
         "xyz_acc_mss",
-        "z_vel_ms",
-        "xb_vel_ms",
-        "yb_vel_ms",
+        # "z_vel_ms",
+        # "xb_vel_ms",
+        # "yb_vel_ms",
         "month_aest",
-        "hrs_since_low_tide",
-        "temperature_dc",
+        # "hrs_since_low_tide",
+        # "temperature_dc",
         "wind_speed_ms",
-        "travel_rel_wind_dir_d",
+        # "travel_rel_wind_dir_d",
         "cloud_cover_p"),
-    variable2 = c(
+    var2 = c(
         NA,
         NA,
         NA,
+        NA,
+        NA,
+        "xy_disp_m",
+        NA,
+        # NA,
+        # NA,
+        # NA,
+        # NA,
+        # NA,
+        # NA,
         NA,
         NA,
         NA))
-        # NA,
-        # NA))
-        # NA,
-        # NA,
-        # NA,
-        # NA,
-        # NA,
-        # NA,
-        # NA,
-        # NA))
 
-invisible(mapply(new_data, predictors$variable1, predictors$variable2))
+invisible(mapply(new_data, predictors$var1, predictors$var2))
 
 ###########################
 #### Fit Visualisation ####
 ###########################
 
-plot_p_term <- function(variable1, variable2) {
-    dataframe <- eval(parse(text = paste0(variable1, "_", variable2, "_df")))
-    var_type1 <- typeof(eval(parse(text = paste0(variable1, "_", variable2, "_df$", variable1))))
-    fit <- eval(parse(text = paste0(variable1, "_", variable2, "_df$fit")))
-    {if (!is.na(variable2)) {
-        plot <- ggplot(data = filter(dataframe, !!sym(variable1) < 500), aes(x = .data[[variable2]], y = .data[[variable1]], z = fit)) +
+plot_p_term <- function(var1, var2) {
+    dataframe <- eval(parse(text = paste0(var1, "_", var2, "_df")))
+    var_type1 <- typeof(eval(parse(text = paste0(var1, "_", var2, "_df$", var1))))
+    fit <- eval(parse(text = paste0(var1, "_", var2, "_df$fit")))
+    {if (!is.na(var2)) {
+        plot <- ggplot(data = filter(dataframe, !!sym(var1) < 500), aes(x = .data[[var2]], y = .data[[var1]], z = fit)) +
         geom_raster(aes(fill = fit)) +
+        geom_contour(colour = "black") +
         scale_fill_gradientn(colours = c("green", "red"))
     }
     else {
-        plot <- ggplot(data = dataframe, aes(.data[[variable1]], y = fit)) +
-        coord_cartesian(ylim = c(-10, 10)) +
-        {if(var_type1 == "integer" | var_type1 == "character") list(
+        plot <- ggplot(data = dataframe, aes(.data[[var1]], y = fit)) +
+        coord_cartesian(ylim = c(-5, 5)) +
+        # {if (var1 == "xy_disp_m" | var1 == "z_disp_m") list(
+        #     geom_line(),
+        #     geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2),
+        #     facet_grid(common_name))} +
+        {if (var_type1 == "integer" | var_type1 == "character") list(
             geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)),
             theme(axis.text.x = element_text(angle = 90, vjust = 0.5)))} +
-        {if(var_type1 == "double") list(
+        {if (var_type1 == "double") list(
             geom_line(),
             geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2))}}}
-    assign(paste0(variable1, "_", variable2, "_plot"), plot, envir = .GlobalEnv)
+    assign(paste0(var1, "_", var2, "_plot"), plot, envir = .GlobalEnv)
 }
 
-mapply(plot_p_term, predictors$variable1, predictors$variable2)
+mapply(plot_p_term, predictors$var1, predictors$var2)
 
-show_plots <- function(variable1, variable2) {
+show_plots <- function(var1, var2) {
     windows()
     par(ask = TRUE)
-    for (i in 1:length(variable1)) {
-        plot(eval(parse(text = paste(variable1[i], variable2[i], "plot", sep = "_"))))
+    for (i in 1:length(var1)) {
+        plot(eval(parse(text = paste(var1[i], var2[i], "plot", sep = "_"))))
     }
     par(ask = FALSE)
 }
 
-show_plots(predictors$variable1, predictors$variable2)
+show_plots(predictors$var1, predictors$var2)
 
 #####################################################
 #### Visualise Cumulative Hazard for Real Flight ####
 #####################################################
 
 flight_log <- data_ped_test %>%
-    filter(test == 157 & flight == 3) %>%
-    filter(common_name == "whimbrel") %>%
+    filter(test == 68 & flight == 4) %>%
+    filter(common_name == "eastern_curlew") %>%
     mutate(intlen = tend - tstart) %>%
     add_cumu_hazard(fit, exclude = "s(flight_number)") %>%
     add_surv_prob(fit, exclude = "s(flight_number)")
@@ -334,14 +363,13 @@ geom_ribbon(alpha = 0.3) +
 geom_line() +
 coord_cartesian(ylim = c(0, 5))
 
-ggplot(
-    flight_log,
-    aes(x = tend, y = surv_prob, ymin = surv_upper, ymax = surv_lower)) +
+ggplot(flight_log, aes(x = tend, y = surv_prob, ymin = surv_upper, ymax = surv_lower)) +
 geom_ribbon(alpha = 0.3) +
 geom_line() +
 geom_line(aes(y = xy_disp_m / max(xy_disp_m)), colour = "red") +
 geom_line(aes(y = z_disp_m / max(z_disp_m)), colour = "green") +
-geom_line(aes(y = xyz_acc_mss_lag / max(xyz_acc_mss_lag)), colour = "blue") +
+geom_line(aes(y = xyz_acc_mss / max(xyz_acc_mss)), colour = "blue") +
+geom_line(aes(y = behaviour), colour = "purple") +
 coord_cartesian(ylim = c(0, 1))
 
 ##################################################
@@ -353,9 +381,9 @@ coord_cartesian(ylim = c(0, 1))
 ref_species <- data_ped_train %>%
     group_by(species) %>%
     sample_info() %>%
-    mutate(count_eastern_curlew = case_when(
-        common_name == "eastern_curlew" ~ count_eastern_curlew,
-        TRUE ~ 0))
+    mutate(presence_eastern_curlew = case_when(
+        common_name == "eastern_curlew" ~ "true",
+        TRUE ~ "false"))
 
 ref <- data_ped_train %>%
     ungroup() %>%
@@ -364,104 +392,78 @@ ref <- data_ped_train %>%
 log_simulator <- function(fit, ref_species, ref, altitude_list,
 target_species_list, drone_type) {
     df_i <- data.frame()
+    dt <- 0.1
     for (i in 1:length(target_birds)) {
         target_species <- target_species_list[i]
         for (a in 1:length(altitude_list)) {
+            print(altitude_list[a])
             altitude <- altitude_list[a]
             xy_disp_m <- c(300)
             xy_disp_m_i <- xy_disp_m[1]
             velocity <- 5
+            tend <- c(0)
+            tend_i <- tend[1]
 
             while (xy_disp_m_i > 0) {
-                xy_disp_m_i <- xy_disp_m_i - velocity
+                xy_disp_m_i <- xy_disp_m_i - velocity * dt
+                tend_i <- tend_i + dt
                 xy_disp_m <- append(xy_disp_m, xy_disp_m_i)
+                tend <- append(tend, tend_i)
             }
 
-            tend <- seq(1, length(xy_disp_m))
+            # tend <- seq(1, length(xy_disp_m))
             common_name <- rep(target_species, length(xy_disp_m))
-            count_eastern_curlew <- rep(0, length(xy_disp_m))
-            count_eastern_curlew <- rep(
-                filter(ref_species, common_name == target_species)$count_eastern_curlew,
+            presence_eastern_curlew <- rep(
+                filter(ref_species, common_name == target_species)$presence_eastern_curlew,
                 length(xy_disp_m))
             flock_number <- sample(
                 unique(data_ped_train$flock_number),
                 length(xy_disp_m),
                 replace = TRUE)
-            count <- rep(
-                filter(ref_species, common_name == target_species)$count,
-                length(xy_disp_m))
             drone <- rep(drone_type, length(xy_disp_m))
             z_disp_m <- rep(altitude, length(xy_disp_m))
-            z_vel_ms <- rep(0, length(xy_disp_m))
-            xb_vel_ms <- rep(velocity, length(xy_disp_m))
-            yb_vel_ms <- rep(0, length(xy_disp_m))
             xyz_acc_mss <- rep(0, length(xy_disp_m))
-            location <- sample(
-                unique(data_ped_train$location),
-                length(xy_disp_m),
-                replace = TRUE)
-            month_aest <- rep(ref$month_aest, length(xy_disp_m))
-            hrs_since_low_tide <- rep(ref$hrs_since_low_tide, length(xy_disp_m))
-            temperature_dc <- rep(ref$temperature_dc, length(xy_disp_m))
+            # month_aest <- rep(ref$month_aest, length(xy_disp_m))
+            month_aest <- rep(11, length(xy_disp_m))
             wind_speed_ms <- rep(ref$wind_speed_ms, length(xy_disp_m))
-            travel_rel_wind_dir_d <- rep(
-                ref$travel_rel_wind_dir_d,
-                length(xy_disp_m))
             cloud_cover_p <- rep(ref$cloud_cover_p, length(xy_disp_m))
 
             new_data <- data.frame(
                 tend,
                 common_name,
-                count_eastern_curlew,
+                presence_eastern_curlew,
                 flock_number,
-                count,
                 drone,
                 z_disp_m,
                 xy_disp_m,
-                z_vel_ms,
-                xb_vel_ms,
-                yb_vel_ms,
                 xyz_acc_mss,
-                location,
                 month_aest,
-                hrs_since_low_tide,
-                temperature_dc,
                 wind_speed_ms,
-                travel_rel_wind_dir_d,
                 cloud_cover_p)
 
             prediction <- new_data %>%
                 mutate(intlen = 1) %>%
-                add_cumu_hazard(fit)
-                # select(
-                #     tend,
-                #     cumu_hazard,
-                #     cumu_upper,
-                #     cumu_lower,
-                #     common_name,
-                #     z_disp_m,
-                #     count_eastern_curlew,
-                #     count,
-                #     drone,
-                #     xy_disp_m)
+                add_surv_prob(fit, exclude = "s(flight_number)")
+                # add_cumu_hazard(fit)
 
             df_i <- bind_rows(df_i, prediction)
         }
     }
-    assign("cum_haz_data", df_i, envir = .GlobalEnv)
+    return (df_i)
 }
 
 altitudes <- seq_range(10:120, n = 20)
 target_birds <- unique(data_ped_train$common_name)
 
-log_simulator(fit, ref_species, ref, altitudes, target_birds, "mavic 2 pro")
+survival_data <- log_simulator(fit, ref_species, ref, altitudes, target_birds, "mavic 2 pro")
 
-fid_95 <- cum_haz_data %>%
-    filter(cumu_hazard > 0.95) %>%
-    group_by(common_name, z_disp_m) %>%
+fid <- survival_data %>%
+    filter(surv_prob < 0.5) %>%
+    # group_by(common_name, z_disp_m) %>%
+    # group_by(common_name, z_disp_m) %>%
     slice(1)
 
-ggplot(fid_20, aes(x = xy_disp_m, y = z_disp_m)) +
-facet_wrap("common_name") +
+ggplot(fid, aes(x = xy_disp_m, y = z_disp_m)) +
+# facet_wrap("common_name") +
 geom_line() +
 theme(legend.position = "bottom")

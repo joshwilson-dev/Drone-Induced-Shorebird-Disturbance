@@ -81,6 +81,51 @@ sci_com <- data.frame(
         "masked_lapwing",
         "terek_sandpiper"))
 
+# disturbance level
+com_dist <- data.frame(
+    common_name = c(
+        "bar_tailed_godwit",
+        "caspian_tern",
+        "whimbrel",
+        "gull_billed_tern",
+        "great_knot",
+        "pied_oystercatcher",
+        "pied_stilt",
+        "eastern_curlew",
+        "australian_pelican",
+        "black_swan",
+        "intermediate_egret",
+        "silver_gull",
+        "little_egret",
+        "white_faced_heron",
+        "royal_spoonbill",
+        "australian_white_ibis",
+        "grey_tailed_tattler",
+        "marsh_sandpiper",
+        "masked_lapwing",
+        "terek_sandpiper"),
+    disturbance_level = c(
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        3,
+        2,
+        1,
+        NA,
+        NA,
+        NA,
+        NA,
+        NA,
+        NA,
+        NA,
+        NA,
+        NA,
+        NA))
+
 # GPS data to location label
 gps_loc <- data.frame(
     lat_rnd = c(
@@ -328,6 +373,16 @@ data_long <- data %>%
     filter(species != "bird") %>%
     # add common name
     merge(., sci_com, all.x = TRUE) %>%
+    # add disturbance level
+    merge(., com_dist, all.x = TRUE) %>%
+    # calculate max disturbance level
+    group_by(test, flight) %>%
+    # mutate(
+    #     sentinal_susceptibility =
+    #     max(disturbance_level, na.rm = TRUE) - disturbance_level) %>%
+    mutate(sentinal_susceptibility = case_when(
+        disturbance_level == max(disturbance_level, na.rm = TRUE) ~ "false",
+        TRUE ~ "true")) %>%
     # drop data where alternate disturbance occured
     filter(notes != "alternate disturbance" | is.na(notes)) %>%
     # convert behaviour to binary
@@ -408,6 +463,7 @@ data_long <- data %>%
         drone,
         species,
         common_name,
+        disturbance_level,
         behaviour,
         count,
         lat,
@@ -429,7 +485,11 @@ data_long <- data %>%
         z_disp_m,
         xy_disp_m,
         xyz_disp_m,
-        month_aest) %>%
+        month_aest,
+        approach_type,
+        sentinal_susceptibility,
+        flycState,
+        flycStateRaw) %>%
     # id is identifier for each test, flight, species
     group_by(test, flight, species) %>%
     mutate(id = cur_group_id()) %>%
@@ -437,7 +497,11 @@ data_long <- data %>%
     filter(!is.na(xy_disp_m)) %>%
     filter(drone_latitude_d != 0 | drone_latitude_d != 0) %>%
     filter(!is.na(video_time_s)) %>%
-    # set start time to drone launch
+    # set start time to when drone leaves ground
+    filter(flycState != "Assisted_Takeoff") %>%
+    filter(flycState != "Motors_Started") %>%
+    filter(flycState != "Confirm_Landing") %>%
+    filter(flycState != "AutoTakeoff") %>%
     mutate(video_time_s = round(video_time_s - first(video_time_s), 1)) %>%
     # add id for merge
     group_by(test, flight, video_time_s) %>%
@@ -446,10 +510,14 @@ data_long <- data %>%
     rename(time = video_time_s) %>%
     # smooth acceleration over 0.5s
     group_by(id) %>%
-    arrange(time) %>%
-    mutate(xyz_acc_mss = rollapply(xyz_acc_mss, 5, mean, fill = "extend"))
+    arrange(id, time) %>%
+    mutate(xyz_acc_mss = rollapply(xyz_acc_mss, 5, mean, fill = "extend")) %>%
+    mutate(roll_max = rollmax(xyz_acc_mss, 40, fill = 0, align = "right")) %>%
+    mutate(transition = case_when(roll_max > 2 ~ "true", TRUE ~ "false"))
 
-# add back on species counts
+unique(data_long$flycState)
+
+# add back on species counts & presence
 data_wide <- data_long %>%
     pivot_wider(
         id_cols = col_id,
@@ -459,7 +527,7 @@ data_wide <- data_long %>%
     replace(is.na(.), 0)
 
 data_complete <- merge(data_wide, data_long) %>%
-    select(-col_id)
+    mutate(total_count = rowSums(across(contains("count_"))))
 
 ##################
 #### Save CSV ####
