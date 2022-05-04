@@ -357,6 +357,9 @@ data_long <- data %>%
         wind_dir_d = (`wind direction (degrees)` + 180) %% 360,
         # rename approach type
         approach_type = `approach type`) %>%
+    rename(
+        lat_tree = tree_lat,
+        lon_tree = tree_lon) %>%
     # pivot long so that each species is on a different row
     pivot_longer(
         cols =
@@ -489,7 +492,10 @@ data_long <- data %>%
         approach_type,
         sentinal_susceptibility,
         flycState,
-        flycStateRaw) %>%
+        flycStateRaw,
+        lat_tree,
+        lon_tree,
+        tree_height) %>%
     # id is identifier for each test, flight, species
     group_by(test, flight, species) %>%
     mutate(id = cur_group_id()) %>%
@@ -513,9 +519,17 @@ data_long <- data %>%
     arrange(id, time) %>%
     mutate(xyz_acc_mss = rollapply(xyz_acc_mss, 5, mean, fill = "extend")) %>%
     mutate(roll_max = rollmax(xyz_acc_mss, 40, fill = 0, align = "right")) %>%
-    mutate(transition = case_when(roll_max > 2 ~ "true", TRUE ~ "false"))
-
-unique(data_long$flycState)
+    mutate(transition = case_when(roll_max > 2 ~ "true", TRUE ~ "false")) %>%
+    mutate(tree_dist =
+            6371009 * sqrt(((pi / 180) *
+            (lat - lat_tree))^2 +
+            ((cos((pi / 180) * (lat + lat_tree) / 2) * (pi / 180) *
+            (long - lon_tree))) ^ 2)) %>%
+    mutate(drone_obscured = case_when(
+        is.na(tree_dist) |
+        (xy_disp_m < tree_dist |
+        z_disp_m > tree_height * xy_disp_m / tree_dist) ~ "false",
+        TRUE ~ "true"))
 
 # add back on species counts & presence
 data_wide <- data_long %>%
