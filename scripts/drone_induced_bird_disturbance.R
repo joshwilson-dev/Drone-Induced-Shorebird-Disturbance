@@ -393,7 +393,6 @@ log_simulator <- function(fit, altitude_list, species_list, drone_name) {
                     tend = row_number(),
                     common_name = species,
                     flight = ref_species$flight,
-                    flock = ref_species$flock,
                     cloud_cover_p = ref$cloud_cover_p,
                     hrs_from_high = 0,
                     wind_speed_ms = ref$wind_speed_ms,
@@ -420,6 +419,7 @@ log_simulator <- function(fit, altitude_list, species_list, drone_name) {
 
 altitudes <- seq_range(0:120, by = 10)
 target_birds <- unique(data_ped$common_name)[1:9]
+# target_birds <- c("eastern curlew")
 
 survival_data <- log_simulator(fit, altitudes, target_birds, "mavic 2 pro")
 
@@ -470,10 +470,13 @@ plot <- ggplot() +
         direction = 1,
         aesthetics = "fill") +
     scale_color_manual(values = c("red", "green")) +
+    # geom_point(data = filter(raw_data, common_name == "eastern curlew", drone == "inspire 2"), aes(x = xy_disp_m, y = z_disp_m, colour = factor(ped_max)), size = 10) +
+    # geom_vline(xintercept = 475, colour = "green", size = 5, linetype = "dashed") +
     geom_point(data = filter(raw_data, drone == "mavic 2 pro" | drone == "mavic mini" | drone == "phantom 4 pro"), aes(x = xy_disp_m, y = z_disp_m, colour = factor(ped_max)), size = 10) +
     facet_wrap("common_name") +
     theme_bw() +
-    scale_x_continuous(limits = c(0, 200), expand = c(0, 0)) +
+    # scale_x_continuous(limits = c(200, 500), expand = c(0, 0)) +
+    scale_x_continuous(limits = c(0, 300), expand = c(0, 0)) +
     scale_y_continuous(expand = c(0, 0)) +
     xlab("Horizontal Distance [m]") +
     ylab("Altitude [m]") +
@@ -488,17 +491,19 @@ plot <- ggplot() +
         axis.text = element_text(size = 60),
         axis.title = element_text(size = 80, face = "bold"),
         legend.position = "bottom",
-        legend.key.size = unit(1, "in"),
+        legend.key.size = unit(1.5, "in"),
         legend.title.align = 0.5,
         legend.text.align = 0.5,
         legend.box = "horizontal",
         legend.margin = margin(0, 2, 0, 2, unit = "in"),
-        legend.text = element_text(size = 40),
+        # legend.margin = margin(0, 0, 0, 0, unit = "in"),
+        legend.text = element_text(size = 50),
         legend.title = element_text(size = 60, face = "bold")) +
         guides(
             colour = guide_legend(nrow = 2, title.position = "top", title.hjust = 0.5),
             fill = guide_legend(nrow = 2, title.position = "top", title.hjust = 0.5))
 
+# ggsave("inspire2-ec-flight_initiation_distance.png", plot, height = 30, width = 30)
 ggsave("flight_initiation_distance.png", plot, height = 40, width = 40)
 
 #####################################################
@@ -528,7 +533,7 @@ ggsave("flight_initiation_distance.png", plot, height = 40, width = 40)
 #### General Statistics ####
 ############################
 
-total_appraoches <- data_ped_train %>%
+total_appraoches <- data_ped %>%
     group_by(flight) %>%
     slice(1) %>%
     ungroup() %>%
@@ -536,8 +541,8 @@ total_appraoches <- data_ped_train %>%
 
 View(total_appraoches)
 
-approaches_per_species <- data_ped_train %>%
-    group_by(id) %>%
+approaches_per_species <- data_ped %>%
+    group_by(flight, common_name) %>%
     slice(1) %>%
     group_by(common_name) %>%
     summarise(count = n())
