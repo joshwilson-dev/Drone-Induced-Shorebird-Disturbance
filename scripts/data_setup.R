@@ -327,14 +327,42 @@ incorrect_time <- c(
 
 # creating clean dataset
 data_long <- data %>%
-    group_by(test, flight) %>%
-    arrange(`video time (seconds)`) %>%
+    # remove data when drone isn't flying
+    filter(!is.na(time_since_launch)) %>%
+    # rename variables
+    rename(
+        # rename velocities
+        z_vel_ms = `zSpeed(m/s)`,
+        x_vel_ms = `xSpeed(m/s)`,
+        y_vel_ms = `ySpeed(m/s)`,
+        xy_vel_ms = `speed(m/s)`,
+        # rename drone heading
+        heading_d = `compass_heading(degrees)`,
+        # rename height
+        z_disp_m = `height_above_takeoff(meters)`,
+        # rename drone position
+        drone_latitude_d = latitude,
+        drone_longitude_d = longitude,
+        # rename temperature
+        temperature_dc = `temperature (degrees celcius)`,
+        # rename cloud cover
+        cloud_cover_p = `cloud cover (%)`,
+        # rename wind speed
+        wind_speed_ms = `wind speed (m/s)`,
+        # rename tree position
+        lat_tree = tree_lat,
+        lon_tree = tree_lon,
+        # rename flight to approach
+        approach = flight,
+    ) %>%
     mutate(
-        # set zspeed to zero if it's NA, because it's needed for acceleration
-        z_vel_ms = case_when(is.na(`zSpeed(m/s)`) ~ 0, T ~ `zSpeed(m/s)`),
-        x_vel_ms = case_when(is.na(`xSpeed(m/s)`) ~ 0, T ~ `xSpeed(m/s)`),
-        y_vel_ms = case_when(is.na(`ySpeed(m/s)`) ~ 0, T ~ `ySpeed(m/s)`),
-        xy_vel_ms = case_when(is.na(`speed(m/s)`) ~ 0, T ~ `speed(m/s)`),
+        # calculate flight number
+        flight = case_when(
+            test > 33 ~ paste0(test, approach),
+            TRUE ~ as.character(test))) %>%
+    group_by(flight) %>%
+    # create new variables
+    mutate(
         # calculate drone acceleration
         z_acc_mss = (
             z_vel_ms -
@@ -349,14 +377,7 @@ data_long <- data %>%
             lag(y_vel_ms, default = first(y_vel_ms))) /
             0.1,
         xyz_acc_mss = (z_acc_mss**2 + x_acc_mss**2 + y_acc_mss**2)**0.5,
-        # rename drone heading
-        heading_d = `compass_heading(degrees)`,
-        # rename drone displacement
-        z_disp_m = `height_above_takeoff(meters)`,
-        # rename drone altitude
-        drone_latitude_d = latitude,
-        drone_longitude_d = longitude,
-        # add datetime in aest
+        # create date in aest
         datetime_aest = (
             as_datetime(
                 `datetime(utc)` * 60 * 60 * 24,
@@ -364,31 +385,15 @@ data_long <- data %>%
                 tz = "australia/queensland")),
         # subtract 1 hour from the incorrect times
         datetime_aest = case_when(
-            test %in% incorrect_time  & flight != 0 ~ datetime_aest - 60 * 60,
+            test %in% incorrect_time ~ datetime_aest - 60 * 60,
             TRUE ~ datetime_aest),
-        # add month integer
-        month_aest = month(datetime_aest),
         # add date
         date_aest = as.Date(datetime_aest, tz = "australia/queensland"),
-        # rename tide height
-        tide_height_m = `tide height (m)`,
-        # rename video time
-        video_time_s = `video time (seconds)`,
-        # rename tide type
-        tide_type = `tide type`,
-        # rename temperature
-        temperature_dc = `temperature (degrees celcius)`,
-        # rename cloud cover
-        cloud_cover_p = `cloud cover (%)`,
-        # rename wind speed
-        wind_speed_ms = `wind speed (m/s)`,
+        # add month integer
+        month_aest = month(datetime_aest),
         # rename wind direction and convert to same coordinate system
-        wind_dir_d = (`wind direction (degrees)` + 180) %% 360,
-        # rename approach type
-        approach_type = `approach type`) %>%
-    rename(
-        lat_tree = tree_lat,
-        lon_tree = tree_lon) %>%
+        wind_dir_d = (`wind direction (degrees)` + 180) %% 360
+    ) %>%
     # pivot long so that each species is on a different row
     pivot_longer(
         cols =
@@ -401,28 +406,22 @@ data_long <- data %>%
         names_pattern = "(.+) (.+)",
         names_transform = list(species = as.factor),
         values_drop_na = TRUE) %>%
-    # drop species bird
-    filter(species != "bird") %>%
     # add common name
     merge(., sci_com, all.x = TRUE) %>%
-    # add sentinel presence
-    group_by(test, flight) %>%
-    mutate(sentinel_presence = case_when(
-        species_sensitivity == max(species_sensitivity, na.rm = TRUE) ~ "false",
-        TRUE ~ "true")) %>%
-    # add sentinel count
-    mutate(count_sentinel = (
-        sum(count[sentinel_presence == "false"]) / (max(video_time_s) * 10 + 1)
-        )
-    ) %>%
-    mutate(count_sentinel = case_when(
-        sentinel_presence == "false" ~ 0,
-        TRUE ~ count_sentinel)) %>%
-    # add total count
-    mutate(count_total = (sum(count) / (max(video_time_s) * 10 + 1))) %>%
-    # convert behaviour to binary
+    # drop NA behaviour
     drop_na(behaviour) %>%
+    # creat new variables
     mutate(
+        # add migrating for migratory shorebirds
+        migrating = case_when(
+            (month_aest == 4 | month_aest == 5) &
+            (common_name == "eastern_curlew" |
+            common_name == "whimbrel" |
+            common_name == "bar_tailed_godwit" |
+            common_name == "great_knot") ~ TRUE,
+            TRUE ~ FALSE),
+        # add total count
+        flock_count = (sum(count) / (max(time_since_launch) * 10 + 1)),
         # convert behaviour to binary
         behaviour = case_when(behaviour == "nominal" ~ 0, TRUE ~ 1),
         # add in distance between drone and birds
@@ -447,7 +446,10 @@ data_long <- data %>%
                 cos((pi / 180) * (long - drone_longitude_d)))),
         # angle between direction of travel and bearing to birds
         travel_dir_d = ((180 / pi) * atan2(y_vel_ms, x_vel_ms)) %% 360,
-        horizontal_approach_angle = (travel_dir_d - bearing_d) %% 180,
+        travel_dir_d = case_when(
+            xy_vel_ms <= 0.3 ~ heading_d,
+            TRUE ~ travel_dir_d),
+        horizontal_approach_angle = abs(travel_dir_d - bearing_d) %% 180,
         # find drone velocity relative to birds
         xb_vel_ms = (
             x_vel_ms * cos((pi / 180) * bearing_d) +
@@ -460,41 +462,22 @@ data_long <- data %>%
         track_rel_wind_dir_d = (wind_dir_d - travel_dir_d) %% 180) %>%
     # add location
     merge(., gps_loc, all.x = TRUE) %>%
-    # add previous low tide time
+    # add tides
     merge(., loc_low, all.x = TRUE) %>%
-    filter(datetime_aest > prev_low_tide) %>%
-    group_by(test, flight, video_time_s, species) %>%
-    arrange(desc(prev_low_tide)) %>%
-    slice(1) %>%
     # add time since high tide
     mutate(hrs_from_high = as.numeric(difftime(
         datetime_aest,
         high_tide,
         units = "hours"))) %>%
-    # add time since low tide
-    mutate(hrs_since_low_tide = as.numeric(difftime(
-        datetime_aest,
-        prev_low_tide,
-        units = "hours"))) %>%
-    # id is identifier for each test, flight, species
-    group_by(test, flight, species) %>%
+    # id is identifier for each flight, species
+    group_by(flight, common_name) %>%
     mutate(id = cur_group_id()) %>%
-    # test valid if drone is logging GPS and video is on
-    filter(!is.na(xy_disp_m)) %>%
-    filter(drone_latitude_d != 0 | drone_latitude_d != 0) %>%
-    filter(!is.na(video_time_s)) %>%
-    # set start time to when drone leaves ground
-    filter(flycState != "Assisted_Takeoff") %>%
-    filter(flycState != "Motors_Started") %>%
-    filter(flycState != "Confirm_Landing") %>%
-    filter(flycState != "AutoTakeoff") %>%
-    mutate(time = round(video_time_s - first(video_time_s), 1)) %>%
     # add id for merge
-    group_by(test, flight, video_time_s) %>%
+    group_by(flight, time_since_launch) %>%
     mutate(col_id = cur_group_id()) %>%
     # smooth acceleration over 0.5s
     group_by(id) %>%
-    arrange(id, time) %>%
+    arrange(id, time_since_launch) %>%
     mutate(xyz_acc_mss = rollapply(xyz_acc_mss, 5, mean, fill = "extend")) %>%
     # check if drone obscured by trees
     mutate(tree_dist =
@@ -507,70 +490,67 @@ data_long <- data %>%
         (xy_disp_m < tree_dist |
         z_disp_m > tree_height * xy_disp_m / tree_dist) ~ "false",
         TRUE ~ "true")) %>%
-    # exclude low tide data
+    # exclude bad approaches
     filter(is.na(notes)) %>%
-    select(-notes) %>%
-    # filter out spibis
-    filter(drone != "spibis") %>%
-    # filter out single manly approach
-    filter(location != "manly") %>%
     # add flock
     group_by(date_aest, location) %>%
     mutate(flock = cur_group_id()) %>%
-    # add approach random effect
-    group_by(test, flight) %>%
-    mutate(approach = cur_group_id()) %>%
-    # add testflight
-    mutate(testflight = as.integer(paste0(test, flight))) %>%
     # fix sentinel flight proportion
     mutate(sentinel_flight_proportion = case_when(
         sentinel_flight_proportion == "scattered" ~ "scattered",
-        TRUE ~ "complete"
-    )) %>%
+        TRUE ~ "complete")) %>%
     # add flock approach
     group_by(flock) %>%
-    mutate(flock_approach = cumsum(!duplicated(testflight))) %>%
+    mutate(flock_approach = cumsum(!duplicated(flight))) %>%
     # drop unused columns
     select(
         id,
         col_id,
         test,
         flight,
-        testflight,
-        flock,
         approach,
-        flock_approach,
-        date_aest,
+        time_since_launch,
+        # target
         common_name,
+        behaviour,
         count,
+        flock_count,
+        sentinel_flight_proportion,
+        flock,
+        flock_approach,
+        # environemnt
         datetime_aest,
+        date_aest,
         hrs_from_high,
         location,
-        time,
         temperature_dc,
         cloud_cover_p,
         wind_speed_ms,
-        track_rel_wind_dir_d,
+        month_aest,
+        migrating,
+        # stimulus
         drone,
-        behaviour,
-        count_sentinel,
-        count_total,
-        sentinel_presence,
-        species_sensitivity,
-        sentinel_flight_proportion,
         horizontal_approach_angle,
+        travel_dir_d,
+        bearing_d,
+        heading_d,
+        drone_latitude_d,
+        drone_longitude_d,
+        lat,
+        long,
         xyz_acc_mss,
         z_vel_ms,
+        x_vel_ms,
+        y_vel_ms,
         xy_vel_ms,
+        xb_vel_ms,
         z_disp_m,
         xy_disp_m,
-        xb_vel_ms,
-        yb_vel_ms,
-        month_aest,
         drone_obscured)
 
 # add back on species counts
 data_wide_count <- data_long %>%
+    group_by(flight, common_name) %>%
     pivot_wider(
         id_cols = col_id,
         names_from = common_name,
@@ -589,19 +569,57 @@ data_wide_behaviour <- data_long %>%
 data_complete <- merge(data_wide_count, data_long) %>%
     merge(., data_wide_behaviour) %>%
     mutate(sum_behaviour = rowSums(select(., contains("behaviour_")))) %>%
-    group_by(test, flight, common_name) %>%
-    mutate(lag_sum_behaviour = lag(sum_behaviour, default = 0)) %>%
-    group_by(test, flight, common_name, behaviour) %>%
+    # if another species takes off, sentinel flight is name of that species
+    group_by(flight, time_since_launch) %>%
+    mutate(
+        sentinel_flight = case_when(
+            sum_behaviour == 1 &
+            behaviour == 1 ~ common_name,
+            TRUE ~ "a"),
+        sentinel_flight = max(sentinel_flight)) %>%
+    group_by(flight, common_name) %>%
+    mutate(sentinel_flight2 = sentinel_flight) %>%
+    mutate(sentinel_flight2 = na_if(sentinel_flight, "a")) %>%
+    fill(sentinel_flight2) %>%
+    mutate(
+        sentinel_flight = case_when(
+            sum_behaviour > 0 &
+            max(sentinel_flight) != "a" &
+            sentinel_flight != common_name ~ sentinel_flight2,
+            TRUE ~ sentinel_flight),
+        sentinel_flight = case_when(
+            sentinel_flight == common_name ~ "a",
+            TRUE ~ sentinel_flight)) %>%
+    group_by(flight, common_name) %>%
+    # sentinel flight only lasts 5 seconds
+    mutate(
+        sentinel_flight = case_when(
+            lag(sentinel_flight, 50, default = "a") == "a" ~ sentinel_flight,
+            TRUE ~ "a")) %>%
+    # sometimes not all sentinel birds took flight
     mutate(sentinel_flight = case_when(
-        behaviour == 1 & sentinel_flight_proportion == "complete" & min(lag_sum_behaviour - behaviour_australian_pelican) > 0 ~ TRUE,
-        behaviour == 0 & sentinel_flight_proportion == "complete" & lag_sum_behaviour - behaviour_australian_pelican > 0 ~ TRUE,
-        TRUE ~ FALSE)) %>%
-    group_by(test, flight, common_name) %>%
-    mutate(sentinel_check = case_when(
-        max(sentinel_flight) > 0 ~ as.integer(paste0(test, flight, "1")),
-        TRUE ~ as.integer(0))) %>%
-    group_by(flock, common_name) %>%
-    mutate(flock_sentinel_flights = cumsum(!duplicated(sentinel_check)) - 1)
+        sentinel_flight_proportion == "scattered" &
+        sentinel_flight != "a" ~ paste0(sentinel_flight, "_partial"),
+        TRUE ~ sentinel_flight)) %>%
+    mutate(sentinel_flight = case_when(
+        sentinel_flight == "a" ~ "null",
+        TRUE ~ sentinel_flight)) %>%
+    # add sentinel count
+    group_by(flight, time_since_launch) %>%
+    mutate(
+        sentinel_count = case_when(
+            sum_behaviour == 1 & behaviour == 1 ~ count,
+            TRUE ~ 0),
+        sentinel_count = max(sentinel_count)) %>%
+    group_by(flight, common_name) %>%
+    mutate(sentinel_count2 = sentinel_count) %>%
+    mutate(sentinel_count2 = na_if(sentinel_count, "null")) %>%
+    fill(sentinel_count2) %>%
+    mutate(
+        sentinel_count = case_when(
+            sentinel_flight != "null" ~ sentinel_count2,
+            TRUE ~ 0)) %>%
+    select(-sentinel_count2, -sentinel_flight2, -sum_behaviour)
 
 ##################
 #### Save CSV ####
