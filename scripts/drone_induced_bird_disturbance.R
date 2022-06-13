@@ -2,10 +2,12 @@
 #### Header ####
 ################
 
-# Title: Drone Induced Bird Disturbance - Time-Varying Effects
+# Title: Drone Induced Bird Disturbance Model Training
 # Author: Josh Wilson
-# Date: 23-03-2022
-# Reference: https://cran.r-project.org/web/packages/mgcv/mgcv.pdf
+# Date: 13-06-2022
+# References:
+# https://cran.r-project.org/web/packages/mgcv/mgcv.pdf
+# https://adibender.github.io/pammtools/
 
 ###############
 #### Setup ####
@@ -14,6 +16,7 @@
 # Clear Environment
 rm(list = ls())
 
+# Specify required packages
 packages <- c("tidyr", "ggplot2", "stringr", "readr", "dplyr", "mgcv", "pammtools")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
@@ -33,30 +36,23 @@ lapply(packages, require, character.only = TRUE)
 #### Data Preparation ####
 ##########################
 
-# import data
-data_new <- read_csv(choose.files(), guess_max = 1000000)
+# import and check data
+data <- read_csv(choose.files(), guess_max = 1000000)
+summary(data)
 
-# prepare train and test data in ped format
+# prepare data in ped format
 prepare_data <- function(df) {
     data_clean <- df %>%
-        # dropping things
-        mutate(sentinel_flight = case_when(
-            sentinel_flight == "australian_pelican" ~ "null",
-            sentinel_flight == "eastern_curlew_partial" ~ "null",
-            sentinel_flight == "masked_lapwing" ~ "null",
-            sentinel_flight == "gull_billed_tern" ~ "null",
-            TRUE ~ sentinel_flight
-        )) %>%
-        filter(common_name != "australian_pelican") %>%
-        # add column to highlight if it's an eastern curlew
+        # add column to highlight if target is an eastern curlew
         # or if the sentinel was eastern curlew
         mutate(eastern_curlew = case_when(
-            common_name == "eastern_curlew" ~ TRUE,
-            sentinel_flight == "eastern_curlew" ~ TRUE,
+            common_name == "eastern curlew" ~ TRUE,
+            sentinel_flight == "eastern curlew" ~ TRUE,
             TRUE ~ FALSE)) %>%
+        # degrade sentinel predictor to true or false
         mutate(sentinel_flight = case_when(
-            sentinel_flight != "null" ~ "true",
-            TRUE ~ "false"
+            sentinel_flight != "null" ~ TRUE,
+            TRUE ~ FALSE
         )) %>%
         # filter out species for which we don't have much data
         # id is identifier for each flight, species
@@ -85,8 +81,6 @@ prepare_data <- function(df) {
             location = as.factor(location),
             flight = as.factor(flight),
             flock = as.factor(flock),
-            common_name = str_replace(common_name, "_", " "),
-            common_name = str_replace(common_name, "_", " "),
             common_name = factor(common_name, levels = c(
                 "eastern curlew",
                 "bar tailed godwit",
@@ -118,7 +112,7 @@ prepare_data <- function(df) {
     return(data_ped)
 }
 
-data_ped <- prepare_data(data_new)
+data_ped <- prepare_data(data)
 
 ###################
 #### Fit Model ####
@@ -128,28 +122,26 @@ data_ped <- prepare_data(data_new)
 system.time({
     fit <- gam(
         ped_status ~
-        # drone
-        drone +
+        # stimulus
+        s(drone, bs = "fs") +
         te(xy_disp_m, z_disp_m, by = eastern_curlew, k = 3) +
         s(xb_vel_ms, k = 3) +
         s(z_vel_ms, k = 3) +
         s(xyz_acc_mss, k = 3) +
         # environment
         s(tend, k = 3) +
-        drone_obscured +
+        s(drone_obscured, bs = "fs") +
         s(wind_speed_ms, k = 3) +
         s(cloud_cover_p, k = 3) +
         s(hrs_from_high, k = 3) +
         s(temperature_dc, k = 3) +
-        location +
-        # flock
-        migrating +
-        common_name +
-        s(flight, bs = "re") +
-        # s(count, k = 3) +
-        # s(flock_count, k = 3) +
-        # s(sentinel_count, k = 3) +
-        sentinel_flight,
+        s(location, bs = "fs") +
+        # target
+        s(migrating, bs = "fs") +
+        s(common_name, bs = "fs") +
+        s(normalised_count, k = 3) +
+        s(sentinel_flight, bs = "fs") +
+        s(flight, bs = "re"),
         data = data_ped,
         family = poisson(),
         method = "REML",
@@ -161,8 +153,8 @@ system.time({
 save_prefix <- "drone-induced-bird-disturbance-gam-"
 saveRDS(fit, paste0(save_prefix, format(Sys.time(), "%d-%m-%y_%H-%M"), ".rds"))
 
-# load model
-fit <- readRDS(choose.files())
+# load model if already trained
+# fit <- readRDS(choose.files())
 
 #########################
 #### Analysis of fit ####
@@ -183,15 +175,21 @@ new_data <- function(var1, var2) {
         mutate(new_col1 = !!sym(var1)) %>%
         mutate(new_col2 = !!sym(var2)) %>%
     {
+        # if there is no interaction term
         if (var2 == "na") {
+            # if the explanitory variable is numerical
             if (var1_type == "double") {
+                # create dataset with specified variable varying
                 make_newdata(
                     .,
                     new_col1 = seq_range(!!sym(var1), n = 100)) %>%
+                mutate(sentinel_flight = TRUE) %>%
                 select(-!!sym(var1)) %>%
                 rename({{var1}} := new_col1) %>%
+                # use model to predict contribution of explanitory variable
                 add_term(., fit, term = var1)
             }
+            # if the explaitory variable is catagorical
             else {
                 make_newdata(., new_col1 = unique(!!sym(var1))) %>%
                 select(-!!sym(var1)) %>%
@@ -199,6 +197,7 @@ new_data <- function(var1, var2) {
                 add_term(., fit, term = var1)
             }
         }
+        # if there is an interaction term
         else {
             make_newdata(
                 .,
@@ -209,7 +208,10 @@ new_data <- function(var1, var2) {
             rename({{var1}} := new_col1) %>%
             select(-!!sym(var2)) %>%
             rename({{var2}} := new_col2) %>%
-            add_term(., fit, term = c("eastern_curlew", paste0(var1, ",", var2)))
+            add_term(
+                .,
+                fit,
+                term = c("eastern_curlew", paste0(var1, ",", var2)))
         }
     }
     df_i <- bind_rows(df_i, new_dataframe)
@@ -235,6 +237,7 @@ predictors <- data.frame(
         "location",
         "migrating",
         "common_name",
+        "normalised_count",
         "flight",
         "sentinel_flight"),
     var2 = c(
@@ -253,13 +256,11 @@ predictors <- data.frame(
         "na",
         "na",
         "na",
+        "na",
         "na"))
 
 invisible(mapply(new_data, predictors$var1, predictors$var2))
-fit_common_name_na <- fit_common_name_na %>%
-    filter(!is.na(common_name))
-fit_sentinel_flight_na <- fit_sentinel_flight_na %>%
-    mutate(sentinel_flight = as.logical(sentinel_flight))
+
 ###########################
 #### Fit Visualisation ####
 ###########################
@@ -322,8 +323,8 @@ plot_fit <- function(var1, var2) {
             plot.margin = margin(0.5, 0.5, 0.5, 0.5, "in"),
             axis.ticks = element_line(size = 2),
             axis.ticks.length = unit(.15, "in"),
-            axis.text = element_text(size = 40),
-            axis.title = element_text(size = 40, face = "bold"),
+            axis.text = element_text(size = 50),
+            axis.title = element_text(size = 50, face = "bold"),
             legend.position = c(.90, .23),
             legend.key.size = unit(0.5, "in"),
             legend.title.align = 0.5,
@@ -349,11 +350,12 @@ plot_fit <- function(var1, var2) {
     ggsave(title, plot, height = height, width = width)
 }
 
+plot_fit("drone", "na")
 mapply(plot_fit, predictors$var1, predictors$var2)
 
-##################################################
-#### Flight Initiation Distance Visualisation ####
-##################################################
+###########################################################################
+#### Survival Probability and Flight Initiation Distance Visualisation ####
+###########################################################################
 
 ref <- data_ped %>%
     ungroup() %>%
@@ -362,7 +364,7 @@ ref <- data_ped %>%
 test_flight <- read_csv(choose.files()) %>%
     filter(time_since_launch %% 1 == 0)
 
-log_simulator <- function(fit, altitude_list, species_list, drone_name) {
+log_simulator <- function(fit, altitude_list, species_list) {
     df_i <- data.frame()
     for (x in 1:length(species_list)) {
         species <- species_list[x]
@@ -398,13 +400,14 @@ log_simulator <- function(fit, altitude_list, species_list, drone_name) {
                     wind_speed_ms = ref$wind_speed_ms,
                     temperature_dc = ref$temperature_dc,
                     location = ref$location,
-                    drone = drone_name,
+                    drone = "mavic 2 pro",
                     eastern_curlew = case_when(
                         common_name == "eastern curlew" ~ TRUE,
                         TRUE ~ FALSE),
                     drone_obscured = FALSE,
                     migrating = FALSE,
-                    sentinel_flight = "false",
+                    normalised_count = 0.5,
+                    sentinel_flight = FALSE,
                     altitude = altitude)
 
             prediction <- flight_log_new %>%
@@ -418,14 +421,71 @@ log_simulator <- function(fit, altitude_list, species_list, drone_name) {
 }
 
 altitudes <- seq_range(0:120, by = 10)
-target_birds <- unique(data_ped$common_name)[1:9]
-# target_birds <- c("eastern curlew")
+target_birds <- unique(data_ped$common_name)
 
-survival_data <- log_simulator(fit, altitudes, target_birds, "mavic 2 pro")
+survival_data <- log_simulator(fit, altitudes, target_birds)
+
+flight_log <- survival_data %>%
+    filter(
+        common_name == "eastern curlew",
+        altitude == 120) %>%
+    mutate(
+        surv_prob = 1 - surv_prob,
+        surv_lower = 1 - surv_lower,
+        surv_upper = 1 - surv_upper) %>%
+    mutate(
+        xy_disp_m = xy_disp_m / max(xy_disp_m),
+        z_disp_m = z_disp_m / max(z_disp_m)) %>%
+    pivot_longer(
+        c(xy_disp_m, z_disp_m, surv_prob),
+        names_to = "legend",
+        values_to = "line") %>%
+    mutate(legend = case_when(
+        legend == "surv_prob" ~ "Flight Probability [%]",
+        legend == "xy_disp_m" ~ "Normalised Distance [0:300m]",
+        legend == "z_disp_m" ~ "Normalised Altitude [0:120m]"))
+
+surv_plot <- ggplot() +
+    geom_line(
+        data = flight_log,
+        aes(y = line, x = tend, colour = legend),
+        size = 1) +
+    geom_ribbon(
+        data = filter(flight_log, legend == "Flight Probability [%]"),
+        aes(x = tend, ymin = surv_lower, ymax = surv_upper),
+        alpha = 0.3,
+        fill = "black") +
+    scale_color_manual(values = c("black", "green", "red")) +
+    xlab("Time Since Launch [s]") +
+    ylab("Normalised Values") +
+    coord_cartesian(ylim = c(0, 1)) +
+    theme_bw() +
+    theme(
+        axis.text = element_text(size = 40),
+        axis.title = element_text(size = 40, face = "bold"),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 20),
+        legend.position = c(0.70, 0.125),
+        legend.box.background = element_rect(colour = "black"))
+
+ggsave("survival.png", surv_plot)
 
 advancing <- survival_data %>%
     mutate(z_disp_m = round(z_disp_m)) %>%
-    filter(z_disp_m == altitude)
+    filter(z_disp_m == altitude) %>%
+    mutate(
+        surv_prob = 1 - surv_prob,
+        surv_lower = 1 - surv_lower,
+        surv_upper = 1 - surv_upper,
+    )
+
+ribbon <- advancing  %>%
+    pivot_longer(contains("surv"), names_to = "Confidence Intervals", values_to = "fit") %>%
+    mutate(`Confidence Intervals` = case_when(
+        `Confidence Intervals` == "surv_prob" ~ "50% Flight Probability",
+        `Confidence Intervals` == "surv_upper" ~ "95% Confidence Interval",
+        `Confidence Intervals` == "surv_lower" ~ "95% Confidence Interval"
+    ))
 
 flights <- data_ped %>%
     group_by(flight, common_name) %>%
@@ -434,7 +494,7 @@ flights <- data_ped %>%
         z_disp_m = abs(z_disp_m),
         xy_disp_m = abs(xy_disp_m)
     ) %>%
-    filter(sentinel_flight == "false") %>%
+    filter(sentinel_flight == FALSE) %>%
     filter(ped_max == 1) %>%
     filter(ped_status == 1) %>%
     slice(1) %>%
@@ -461,22 +521,20 @@ raw_data <- bind_rows(flights, no_flights) %>%
             ped_max == 1 ~ "Flight",
             TRUE ~ "No Flight"))
 
-plot <- ggplot() +
+fid_plot <- ggplot() +
     geom_contour_filled(data = advancing, aes(x = xy_disp_m, y = z_disp_m, z = surv_prob), binwidth = 0.1) +
-    # geom_contour(data = advancing, colour = "black", binwidth = 0.5, size = 2) +
+    geom_contour(data = ribbon, aes(x = xy_disp_m, y = z_disp_m, z = fit, linetype = `Confidence Intervals`), colour = "black", binwidth = 0.5, size = 3) +
     scale_fill_brewer(
         type = "div",
         palette = 8,
-        direction = 1,
+        direction = -1,
         aesthetics = "fill") +
     scale_color_manual(values = c("red", "green")) +
-    # geom_point(data = filter(raw_data, common_name == "eastern curlew", drone == "inspire 2"), aes(x = xy_disp_m, y = z_disp_m, colour = factor(ped_max)), size = 10) +
-    # geom_vline(xintercept = 475, colour = "green", size = 5, linetype = "dashed") +
+    scale_linetype_manual(values = c("solid", "dashed", "dashed")) +
     geom_point(data = filter(raw_data, drone == "mavic 2 pro" | drone == "mavic mini" | drone == "phantom 4 pro"), aes(x = xy_disp_m, y = z_disp_m, colour = factor(ped_max)), size = 10) +
     facet_wrap("common_name") +
     theme_bw() +
-    # scale_x_continuous(limits = c(200, 500), expand = c(0, 0)) +
-    scale_x_continuous(limits = c(0, 300), expand = c(0, 0)) +
+    scale_x_continuous(limits = c(0, 200), expand = c(0, 0)) +
     scale_y_continuous(expand = c(0, 0)) +
     xlab("Horizontal Distance [m]") +
     ylab("Altitude [m]") +
@@ -493,41 +551,17 @@ plot <- ggplot() +
         legend.position = "bottom",
         legend.key.size = unit(1.5, "in"),
         legend.title.align = 0.5,
-        legend.text.align = 0.5,
+        legend.text.align = 0,
         legend.box = "horizontal",
-        legend.margin = margin(0, 2, 0, 2, unit = "in"),
-        # legend.margin = margin(0, 0, 0, 0, unit = "in"),
+        legend.margin = margin(1, 2, 0, 2, unit = "in"),
         legend.text = element_text(size = 50),
         legend.title = element_text(size = 60, face = "bold")) +
         guides(
             colour = guide_legend(nrow = 2, title.position = "top", title.hjust = 0.5),
-            fill = guide_legend(nrow = 2, title.position = "top", title.hjust = 0.5))
+            fill = guide_legend(nrow = 5, title.position = "top", title.hjust = 0.5),
+            linetype = guide_legend(nrow = 3, title.position = "top", title.hjust = 0.5))
 
-# ggsave("inspire2-ec-flight_initiation_distance.png", plot, height = 30, width = 30)
-ggsave("flight_initiation_distance.png", plot, height = 40, width = 40)
-
-#####################################################
-#### Visualise Cumulative Hazard for Real Flight ####
-#####################################################
-# unique(data_ped$flight)
-# flight_log <- data_ped %>%
-#     filter(flight == 160) %>%
-#     mutate(drone = "mavic 2 pro") %>%
-#     mutate(intlen = tend - tstart) %>%
-#     mutate(sentinel_flight = "null") %>%
-#     add_surv_prob(fit, exclude = "s(flock)")
-
-# check <- flight_log %>%
-#     select(tstart, tend, intlen, z_disp_m, xy_disp_m, xb_vel_ms, xyz_acc_mss, drone, migrating, drone_obscured, sentinel_flight)
-
-# ggplot(flight_log, aes(x = tend, y = surv_prob, ymin = surv_upper, ymax = surv_lower)) +
-# geom_ribbon(alpha = 0.3) +
-# geom_line() +
-# geom_line(aes(y = xy_disp_m / max(xy_disp_m)), colour = "red") +
-# geom_line(aes(y = z_disp_m / max(z_disp_m)), colour = "green") +
-# geom_line(aes(y = xyz_acc_mss / max(xyz_acc_mss)), colour = "blue") +
-# geom_line(aes(y = behaviour), colour = "purple") +
-# coord_cartesian(ylim = c(0, 1))
+ggsave("flight_initiation_distance.png", fid_plot, height = 40, width = 40)
 
 ############################
 #### General Statistics ####
@@ -549,7 +583,7 @@ approaches_per_species <- data_ped %>%
 
 View(approaches_per_species)
 
-approaches_per_site <-  data_ped_train %>%
+approaches_per_site <-  data_ped %>%
     group_by(flight) %>%
     slice(1) %>%
     group_by(location) %>%
@@ -557,69 +591,10 @@ approaches_per_site <-  data_ped_train %>%
 
 View(approaches_per_site)
 
-approaches_per_drone <- data_ped_train %>%
+approaches_per_drone <- data_ped %>%
     group_by(flight) %>%
     slice(1) %>%
     group_by(drone) %>%
     summarise(count = n())
 
 View(approaches_per_drone)
-
-
-#### quick Plot
-
-data_plot <- data %>%
-    filter(drone != "spibis") %>%
-    filter(is.na(notes)) %>%
-    select(-notes) %>%
-    filter(approach_type == "advancing") %>%
-    filter(common_name == "eastern_curlew") %>%
-    filter(behaviour == 1) %>%
-    group_by(flight) %>%
-    slice(1)
-
-plot <- ggplot(data_plot, aes(x = xy_disp_m, y = z_disp_m, colour = drone)) +
-    theme_bw() +
-    ylab("Altitude") +
-    xlab("Distance") +
-    theme(
-        legend.position = c(.80, .30),
-        strip.text = element_text(size = 40, face = "bold"),
-        plot.margin = margin(1, 1, 1, 1, "in"),
-        axis.ticks = element_line(size = 2),
-        axis.ticks.length = unit(.15, "in"),
-        axis.text = element_text(size = 60),
-        axis.title = element_text(size = 60, face = "bold"),
-        legend.key.size = unit(0.25, "in"),
-        legend.title.align = 0.5,
-        legend.text.align = 0.5,
-        legend.box.background = element_rect(color = "black", size = 1),
-        legend.text = element_text(size = 40),
-        legend.title = element_text(size = 40, face = "bold")) +
-    scale_x_continuous(limits = c(0, 400), expand = c(0, 0)) +
-    scale_y_continuous(limits = c(0, 130), expand = c(0, 0)) +
-    coord_fixed(ratio = 1) +
-    geom_point(size = 8)
-
-ggsave("eastern_curlew_FID.png", plot, height = 25, width = 25)
-
-#### Quick Plot
-
-#### Actual Data ####
-plot_data <- data_ped %>%
-    filter(common_name == "pied_stilt")
-
-check <- data_ped %>%
-    group_by(flight, common_name) %>%
-    mutate(ped_status = max(ped_status)) %>%
-    select(flight, common_name, ped_status) %>%
-    slice(1)
-
-ggplot(plot_data, aes(xy_disp_m, z_disp_m, colour = ped_status)) +
-geom_point()
-
-flights <- data_ped %>%
-    group_by(flight, common_name) %>%
-    filter(ped_status == 1) %>%
-    slice(1) %>%
-    select(flight, common_name, ped_status, sentinel_flight)
