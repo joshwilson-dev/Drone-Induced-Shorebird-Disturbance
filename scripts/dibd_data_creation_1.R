@@ -67,7 +67,7 @@ prepare_data <- function(df) {
         # but keep first sentinel flight and flight
         group_by(flight, behaviour, sentinel_flight) %>%
         mutate(keep = case_when(
-            sentinel_flight != "null" & behaviour == 0 & row_number() <= 1 ~ 1,
+            sentinel_flight != as.logical(TRUE) & behaviour == 0 & row_number() <= 1 ~ 1,
             behaviour == 1 ~ 1,
             time_since_launch %% 5 == 0 ~ 1,
             TRUE ~ 0)) %>%
