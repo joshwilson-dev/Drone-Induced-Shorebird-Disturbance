@@ -44,15 +44,15 @@ prepare_data <- function(df) {
     data_clean <- df %>%
         # add column to highlight if target is an eastern curlew
         # or if the sentinel was eastern curlew
-        mutate(eastern_curlew = case_when(
-            common_name == "eastern curlew" ~ TRUE,
-            sentinel_flight == "eastern curlew" ~ TRUE,
-            TRUE ~ FALSE)) %>%
-        # degrade sentinel predictor to true or false
-        mutate(sentinel_flight = case_when(
-            sentinel_flight != "null" ~ TRUE,
-            TRUE ~ FALSE
-        )) %>%
+        # mutate(eastern_curlew = case_when(
+        #     common_name == "eastern curlew" ~ TRUE,
+        #     sentinel_flight == "eastern curlew" ~ TRUE,
+        #     TRUE ~ FALSE)) %>%
+        # # degrade sentinel predictor to true or false
+        # mutate(sentinel_flight = case_when(
+        #     sentinel_flight != "null" ~ TRUE,
+        #     TRUE ~ FALSE
+        # )) %>%
         # filter out species for which we don't have much data
         # id is identifier for each flight, species
         group_by(flight, common_name) %>%
