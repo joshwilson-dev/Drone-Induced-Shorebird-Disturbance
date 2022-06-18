@@ -57,24 +57,23 @@ system.time({
     fit <- gam(
         ped_status ~
         # stimulus
-        s(drone, bs = "fs") +
-        te(xy_disp_m, z_disp_m, by = eastern_curlew, k = 3) +
-        s(xb_vel_ms, k = 3) +
-        s(z_vel_ms, k = 3) +
-        s(xyz_acc_mss, k = 3) +
+        drone +
+        s(xy_disp_m, z_disp_m, by = interaction(sentinel_flight, common_name), k = 5) +
+        s(xb_vel_ms, k = 5) +
+        s(z_vel_ms, k = 5) +
+        s(xyz_acc_mss, k = 5) +
         # environment
-        s(tend, k = 3) +
-        s(drone_obscured, bs = "fs") +
-        s(wind_speed_ms, k = 3) +
-        s(cloud_cover_p, k = 3) +
-        s(hrs_from_high, k = 3) +
-        s(temperature_dc, k = 3) +
-        s(location, bs = "fs") +
+        s(tend, k = 5) +
+        drone_obscured +
+        s(wind_speed_ms, k = 5) +
+        s(cloud_cover_p, k = 5) +
+        s(hrs_from_high, k = 5) +
+        s(temperature_dc, k = 5) +
+        location +
         # target
-        s(migrating, bs = "fs") +
-        s(common_name, bs = "fs") +
-        s(normalised_count, k = 3) +
-        s(sentinel_flight, bs = "fs") +
+        migrating +
+        sentinel_flight * common_name +
+        s(normalised_count, k = 5) +
         s(flight, bs = "re"),
         data = data_ped,
         family = poisson(),
