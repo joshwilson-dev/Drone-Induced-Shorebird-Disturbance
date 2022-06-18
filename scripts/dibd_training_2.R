@@ -58,7 +58,7 @@ system.time({
         ped_status ~
         # stimulus
         drone +
-        s(xy_disp_m, z_disp_m, by = interaction(sentinel_flight, common_name), k = 5) +
+        s(xy_disp_m, z_disp_m, by = eastern_curlew, k = 5) +
         s(xb_vel_ms, k = 5) +
         s(z_vel_ms, k = 5) +
         s(xyz_acc_mss, k = 5) +
@@ -72,7 +72,8 @@ system.time({
         location +
         # target
         migrating +
-        sentinel_flight * common_name +
+        sentinel_flight +
+        common_name +
         s(normalised_count, k = 5) +
         s(flight, bs = "re"),
         data = data_ped,

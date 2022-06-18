@@ -51,7 +51,9 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 #### Analysis of fit ####
 #########################
 # load model and print outputs
-fit <- readRDS("models/dibd_model-13-06-22_10-27.rds")
+# fit <- readRDS("models/dibd_model-13-06-22_10-27.rds")
+fit <- readRDS("models/dibd-model-19-06-22_09-16.rds")
+
 summary(fit)
 
 # create dataframes investigating fit of each model parameter individually
