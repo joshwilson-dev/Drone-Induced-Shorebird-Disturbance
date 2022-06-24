@@ -33,26 +33,16 @@ if (length(new_packages)) {
 lapply(packages, require, character.only = TRUE)
 
 # import data
-data_ped <- read_csv("data/dibd_ped_data.csv") %>%
-    mutate(
-        common_name = factor(common_name, levels = c(
-            "eastern curlew",
-            "bar tailed godwit",
-            "whimbrel",
-            "gull billed tern",
-            "great knot",
-            "caspian tern",
-            "pied stilt",
-            "pied oystercatcher",
-            "black swan")))
+data_ped <- read_csv("data/dibd_ped_data.csv")
 
 ###########################################################################
 #### Survival Probability and Flight Initiation Distance Visualisation ####
 ###########################################################################
 
 # load model
-# fit <- readRDS("models/dibd_model-13-06-22_10-27.rds")
-fit <- readRDS("models/dibd-model-19-06-22_09-16.rds")
+fit <- readRDS("models/dibd-model-25-06-22_06-13.rds")
+
+summary(fit)
 # determine the mean, or mode for all numerical or categorical variables
 ref <- data_ped %>%
     ungroup() %>%
@@ -94,20 +84,16 @@ log_simulator <- function(fit, altitude_list, species_list) {
                 mutate(
                     tend = row_number(),
                     common_name = species,
-                    flight = ref_species$flight,
+                    flight = ref$flight,
                     cloud_cover_p = ref$cloud_cover_p,
-                    hrs_from_high = 0,
+                    hrs_from_high = ref$hrs_from_high,
                     wind_speed_ms = ref$wind_speed_ms,
                     temperature_dc = ref$temperature_dc,
                     location = ref$location,
                     drone = "mavic 2 pro",
-                    eastern_curlew = case_when(
-                        common_name == "eastern curlew" ~ TRUE,
-                        TRUE ~ FALSE),
                     drone_obscured = FALSE,
-                    migrating = FALSE,
+                    count = ref$count,
                     normalised_count = 0.5,
-                    sentinel_flight = FALSE,
                     altitude = altitude)
             # predicting survival probability
             prediction <- flight_log_new %>%
@@ -123,7 +109,6 @@ log_simulator <- function(fit, altitude_list, species_list) {
 # test altitudes between 0 and 120m for all species in model
 altitudes <- seq_range(0:120, by = 10)
 target_birds <- unique(data_ped$common_name)
-
 survival_data <- log_simulator(fit, altitudes, target_birds)
 
 # creating and plotting example of output predicted probability
@@ -175,11 +160,8 @@ ggsave("plots/plot_survival.png", surv_plot, height = 10, width = 10)
 # creating contour plot of flight probability for each species
 advancing <- survival_data %>%
     mutate(z_disp_m = round(z_disp_m)) %>%
-    filter(z_disp_m == altitude) %>%
-    mutate(
-        surv_prob = 1 - surv_prob,
-        surv_lower = 1 - surv_lower,
-        surv_upper = 1 - surv_upper)
+    filter(z_disp_m == altitude)
+
 # Creating line at 50% flight probability with corresponding CI
 ribbon <- advancing  %>%
     pivot_longer(
@@ -189,42 +171,13 @@ ribbon <- advancing  %>%
     mutate(`Confidence Intervals` = case_when(
         `Confidence Intervals` == "surv_prob" ~ "50% Flight Probability",
         `Confidence Intervals` == "surv_upper" ~ "95% Confidence Interval",
-        `Confidence Intervals` == "surv_lower" ~ "95% Confidence Interval"))
+        `Confidence Intervals` == "surv_lower" ~ "95% Lower Confidence Interval"))
 
-# getting raw data approach endpoints when the birds took flight
-flights <- data_ped %>%
-    group_by(flight, common_name) %>%
-    mutate(
-        ped_max = max(ped_status),
-        z_disp_m = abs(z_disp_m),
-        xy_disp_m = abs(xy_disp_m)) %>%
-    filter(sentinel_flight == FALSE) %>%
-    filter(ped_max == 1) %>%
-    filter(ped_status == 1) %>%
-    slice(1) %>%
-    select(flight, ped_max, drone, z_disp_m, xy_disp_m, common_name)
-# getting raw data approach endpoints when the birds did not take flight
-no_flights <- data_ped %>%
-    filter(!is.na(approach)) %>%
-    group_by(flight, approach, common_name) %>%
-    mutate(ped_max = max(ped_status)) %>%
-    filter(ped_max == 0) %>%
-    mutate(
-        max_z_disp_m = abs(max(z_disp_m)),
-        min_xy_disp_m = abs(min(xy_disp_m))) %>%
-    slice(1) %>%
-    ungroup() %>%
-    select(
-        flight, ped_max, drone, max_z_disp_m, min_xy_disp_m, common_name) %>%
-    rename(z_disp_m = max_z_disp_m, xy_disp_m = min_xy_disp_m) %>%
-    filter(!is.na(common_name))
-# join flight and no flight raw data
-raw_data <- bind_rows(flights, no_flights) %>%
-    arrange(ped_max, decreasing = TRUE) %>%
-    mutate(
-        ped_max = case_when(
-            ped_max == 1 ~ "Flight",
-            TRUE ~ "No Flight"))
+raw_data <- data_ped %>%
+    mutate(data_ped, ped_status = case_when(
+        ped_status == 1 ~ "Flight",
+        ped_status == 0 ~ "No Flight")) %>%
+    arrange(desc(ped_status))
 
 fid_plot <- ggplot() +
     # create base contour plots
@@ -236,7 +189,7 @@ fid_plot <- ggplot() +
     scale_fill_brewer(
         type = "div",
         palette = 8,
-        direction = -1,
+        direction = 1,
         aesthetics = "fill") +
     # add line and ribbons at 50% flight probability
     geom_contour(
@@ -249,17 +202,13 @@ fid_plot <- ggplot() +
         colour = "black",
         binwidth = 0.5,
         size = 3) +
-    # define colours for 50% flight prob 
+    # define colours for 50% flight prob
     scale_linetype_manual(values = c("solid", "dashed", "dashed")) +
     # add raw flight or no flight endpoints for sub-2kg drones
     geom_point(
-        data = filter(
-            raw_data,
-            drone == "mavic 2 pro" |
-            drone == "mavic mini" |
-            drone == "phantom 4 pro"),
+        data = raw_data,
         aes(x = xy_disp_m, y = z_disp_m,
-        colour = factor(ped_max)),
+        colour = factor(ped_status)),
         size = 10) +
     # define colours for raw data
     scale_color_manual(values = c("red", "green")) +
@@ -267,7 +216,9 @@ fid_plot <- ggplot() +
     facet_wrap("common_name") +
     # make plot aesthetic
     theme_bw() +
-    scale_x_continuous(limits = c(0, 200), expand = c(0, 0)) +
+    # scale_x_continuous(limits = c(0, 300.5), expand = c(0, 0)) +
+    scale_x_continuous(expand = c(0, 0)) +
+    # scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
     scale_y_continuous(expand = c(0, 0)) +
     xlab("Horizontal Distance [m]") +
     ylab("Altitude [m]") +
@@ -303,4 +254,8 @@ fid_plot <- ggplot() +
                 title.position = "top",
                 title.hjust = 0.5))
 # save plot
-ggsave("plots/plot_flight_initiation_distance.png", fid_plot, height = 40, width = 40)
+ggsave("plots/plot_flight_initiation_distance.png", fid_plot, height = 60, width = 60, limitsize = FALSE)
+
+check <- data_ped %>%
+    filter(common_name == "bar tailed godwit") %>%
+    select(test, approach, ped_status, z_disp_m, xy_disp_m)

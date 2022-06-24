@@ -34,7 +34,7 @@ lapply(packages, require, character.only = TRUE)
 
 # import and check data
 data <- read_csv(unz("data/dibd_data.zip", "dibd_data.csv"))
-summary(data)
+
 ######################
 #### Prepare Data ####
 ######################
@@ -42,32 +42,20 @@ summary(data)
 # prepare data in ped format
 prepare_data <- function(df) {
     data_clean <- df %>%
-        # add column to highlight if target is an eastern curlew
-        # or if the sentinel was eastern curlew
-        mutate(eastern_curlew = case_when(
-            common_name == "eastern curlew" ~ TRUE,
-            sentinel_flight == "eastern curlew" ~ TRUE,
-            TRUE ~ FALSE)) %>%
-        # degrade sentinel predictor to true or false
+        # remove sentinel_flights
         mutate(sentinel_flight = case_when(
-            sentinel_flight != "null" ~ TRUE,
-            TRUE ~ FALSE
+            sentinel_flight == "null" ~ "a",
+            TRUE ~ sentinel_flight
         )) %>%
-        # filter out species for which we don't have much data
-        # id is identifier for each flight, species
         group_by(flight, common_name) %>%
-        mutate(id = cur_group_id()) %>%
-        group_by(common_name) %>%
-        mutate(approaches_species = n_distinct(id)) %>%
-        filter(approaches_species > 10) %>%
+        filter(max(sentinel_flight) == "a") %>%
         # approach ends if birds take flight
         group_by(flight, common_name, behaviour) %>%
         filter(behaviour == 0 | row_number() <= 1) %>%
-        # degrade data to every 5 seconds to fit faster
-        # but keep first sentinel flight and flight
+        # degrade data to every second to fit faster
+        # but keep first flight
         group_by(flight, behaviour, sentinel_flight) %>%
         mutate(keep = case_when(
-            sentinel_flight != TRUE & behaviour == 0 & row_number() <= 1 ~ 1,
             behaviour == 1 ~ 1,
             time_since_launch %% 5 == 0 ~ 1,
             TRUE ~ 0)) %>%

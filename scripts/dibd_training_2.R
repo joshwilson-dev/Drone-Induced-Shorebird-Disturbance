@@ -36,15 +36,9 @@ lapply(packages, require, character.only = TRUE)
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     # specify factors
     mutate(
-        drone = as.factor(drone),
-        location = as.factor(location),
         flight = as.factor(flight),
-        flock = as.factor(flock),
-        common_name = as.factor(common_name),
         drone_obscured = as.factor(drone_obscured),
-        sentinel_flight = as.factor(sentinel_flight),
-        eastern_curlew = as.factor(eastern_curlew),
-        migrating = as.factor(migrating))
+        common_name = as.factor(common_name))
 
 summary(data_ped)
 
@@ -58,10 +52,9 @@ system.time({
         ped_status ~
         # stimulus
         drone +
-        s(xy_disp_m, z_disp_m, by = eastern_curlew, k = 5) +
+        te(xy_disp_m, z_disp_m, by = common_name, k = 3) +
         s(xb_vel_ms, k = 5) +
         s(z_vel_ms, k = 5) +
-        s(xyz_acc_mss, k = 5) +
         # environment
         s(tend, k = 5) +
         drone_obscured +
@@ -71,9 +64,6 @@ system.time({
         s(temperature_dc, k = 5) +
         location +
         # target
-        migrating +
-        sentinel_flight +
-        common_name +
         s(normalised_count, k = 5) +
         s(flight, bs = "re"),
         data = data_ped,
