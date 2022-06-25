@@ -1,4 +1,4 @@
-time_since_launch,drone_latitude_d,drone_longitude_d,bird_lat,bird_long,z_disp_m,xy_vel_ms,distance_from_home,xy_disp_m,x_vel_ms,y_vel_ms,z_vel_ms,xb_vel_ms,z_acc_mss,x_acc_mss,y_acc_mss,xyz_acc_mss_fine,xyz_acc_mss,heading_d,bearing_d,travel_dir_d,horizontal_approach_angle
+time_since_launch,stimulus_latitude,stimulus_longitude,target_latitude,target_longitude,stimulus_dz_m,stimulus_vxyh_ms,distance_from_home,stimulus_dxy_m,stimulus_vx_ms,stimulus_vy_ms,stimulus_vz_ms,stimulus_vxy_ms,stimulus_az_mss,stimulus_ax_mss,stimulus_ay_mss,stimulus_axyz_mss_fine,stimulus_axyz_mss,heading_d,bearing_d,travel_dir_d,horizontal_approach_angle
 0,-27.04542082,153.1073012,-27.047909,153.108957,0,0,0.00998447,302.4220155,0.2,0,-0.2,-0.172051916,0,0,0,0,0.647213595,130.1,149.3457411,130.1,19.24574108
 0.1,-27.04542058,153.1073012,-27.047909,153.108957,0,0.3,0.0366096,302.3953904,0.3,0,-0.4,-0.258083101,-2,1,0,2.236067977,0.930056308,130.1,149.347699,130.1,19.24769904
 0.2,-27.04542025,153.1073011,-27.047909,153.108957,0,0.3,0.0745101,302.3574899,0.3,0,-0.5,-0.258089738,-1,0,0,1,1.530056308,130.1,149.3501853,130.1,19.25018533

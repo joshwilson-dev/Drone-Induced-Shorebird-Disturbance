@@ -33,7 +33,7 @@ if (length(new_packages)) {
 lapply(packages, require, character.only = TRUE)
 
 # import and check data
-data <- read_csv(unz("data/dibd_data.zip", "dibd_data.csv"))
+data <- read_csv("data/dibd_data.csv")
 
 ######################
 #### Prepare Data ####
@@ -41,33 +41,11 @@ data <- read_csv(unz("data/dibd_data.zip", "dibd_data.csv"))
 
 # prepare data in ped format
 prepare_data <- function(df) {
-    data_clean <- df %>%
-        # remove sentinel_flights
-        mutate(sentinel_flight = case_when(
-            sentinel_flight == "null" ~ "a",
-            TRUE ~ sentinel_flight
-        )) %>%
-        group_by(flight, common_name) %>%
-        filter(max(sentinel_flight) == "a") %>%
-        # approach ends if birds take flight
-        group_by(flight, common_name, behaviour) %>%
-        filter(behaviour == 0 | row_number() <= 1) %>%
-        # degrade data to every second to fit faster
-        # but keep first flight
-        group_by(flight, behaviour, sentinel_flight) %>%
-        mutate(keep = case_when(
-            behaviour == 1 ~ 1,
-            time_since_launch %% 5 == 0 ~ 1,
-            TRUE ~ 0)) %>%
-        group_by(time_since_launch) %>%
-        mutate(keep = case_when(max(keep) == 1 ~ 1, TRUE ~ 0)) %>%
-        filter(keep == 1)
-
     # create ped parameters
-    data_ped <- data_clean %>%
-        group_by(flight, common_name) %>%
+    data_ped <- df %>%
+        group_by(test, approach, target_species) %>%
         mutate(
-            ped_status = lead(behaviour),
+            ped_status = lead(target_response),
             tstart = time_since_launch,
             tend = lead(time_since_launch),
             interval = tend - tstart,

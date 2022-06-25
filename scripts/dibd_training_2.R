@@ -35,10 +35,7 @@ lapply(packages, require, character.only = TRUE)
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     # specify factors
-    mutate(
-        flight = as.factor(flight),
-        drone_obscured = as.factor(drone_obscured),
-        common_name = as.factor(common_name))
+    mutate(target_flock = as.factor(target_flock))
 
 summary(data_ped)
 
@@ -51,21 +48,22 @@ system.time({
     fit <- gam(
         ped_status ~
         # stimulus
-        drone +
-        te(xy_disp_m, z_disp_m, by = common_name, k = 3) +
-        s(xb_vel_ms, k = 5) +
-        s(z_vel_ms, k = 5) +
+        stimulus_specification +
+        s(stimulus_dxy_m, k = 5) +
+        s(stimulus_dz_m, k = 5) +
+        s(stimulus_vxy_ms, k = 5) +
+        s(stimulus_vz_ms, k = 5) +
         # environment
         s(tend, k = 5) +
-        drone_obscured +
-        s(wind_speed_ms, k = 5) +
-        s(cloud_cover_p, k = 5) +
-        s(hrs_from_high, k = 5) +
-        s(temperature_dc, k = 5) +
-        location +
+        environment_obscured +
+        s(environment_wind_ms, k = 5) +
+        s(environment_cloud_p, k = 5) +
+        s(environment_peaktide_hrs, k = 5) +
+        s(environment_temperature_dc, k = 5) +
+        environment_location +
         # target
-        s(normalised_count, k = 5) +
-        s(flight, bs = "re"),
+        s(count_eastern_curlew, k = 5) +
+        s(target_flock, bs = "re"),
         data = data_ped,
         family = poisson(),
         method = "REML",
