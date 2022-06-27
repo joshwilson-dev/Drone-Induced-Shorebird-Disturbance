@@ -34,14 +34,16 @@ lapply(packages, require, character.only = TRUE)
 
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
-    mutate(target_flock = as.factor(target_flock))
+    mutate(
+        flock = as.factor(flock),
+        flight = as.factor(flight))
 
 ###########################################################################
 #### Survival Probability and Flight Initiation Distance Visualisation ####
 ###########################################################################
 
 # load model
-fit <- readRDS("models/dibd-model-25-06-22_14-17.rds")
+fit <- readRDS("models/dibd-model-27-06-22_10-04.rds")
 
 summary(fit)
 # determine the mean, or mode for all numerical or categorical variables
@@ -54,71 +56,86 @@ test_flight <- read_csv("data/dibd_test_flight.csv") %>%
     filter(time_since_launch %% 1 == 0)
 
 # This function adds the required explanitory variables to the test flight
-log_simulator <- function(fit, altitude_list) {
+log_simulator <- function(fit, altitude_list, species_list) {
     df_i <- data.frame()
-    # loop through test altitudes, crop the test flight accordingly
-    # predict the survival probability and save the output
-    for (y in 1:length(altitude_list)) {
-        altitude <- altitude_list[y]
-        # cropping test flight to specified altitude
-        flight_ascent <- test_flight %>%
-            filter(stimulus_dz_m < altitude - 4)
+    for (x in 1:length(species_list)) {
+        target <- species_list[x]
+        # determine species specific referencedata
+        ref_species <- data_ped %>%
+            ungroup() %>%
+            filter(species == as.character(target)) %>%
+            sample_info()
+        # loop through test altitudes, crop the test flight accordingly
+        # predict the survival probability and save the output
+        for (y in 1:length(altitude_list)) {
+            altitude <- altitude_list[y]
+            # cropping test flight to specified altitude
+            flight_ascent <- test_flight %>%
+                filter(distance_z < altitude - 4)
 
-        flight_approach <- test_flight %>%
-            slice(round(47):n()) %>%
-            mutate(stimulus_dz_m = stimulus_dz_m - (120 - altitude))
-        # adding on explanitory variables
-        flight_log_new <- rbind(flight_ascent, flight_approach) %>%
-            select(
-                stimulus_dxy_m,
-                stimulus_dz_m,
-                stimulus_vxy_ms,
-                stimulus_vz_ms,
-                stimulus_axyz_mss) %>%
-            mutate(
-                tend = row_number(),
-                target_flock = ref$target_flock,
-                environment_cloud_p = ref$environment_cloud_p,
-                environment_peaktide_hrs = ref$environment_peaktide_hrs,
-                environment_wind_ms = ref$environment_wind_ms,
-                environment_temperature_dc = ref$environment_temperature_dc,
-                environment_location = ref$environment_location,
-                stimulus_specification = "mavic 2 pro",
-                environment_obscured = "not obscured",
-                count_eastern_curlew = ref$count_eastern_curlew,
-                altitude = altitude)
-        # predicting survival probability
-        prediction <- flight_log_new %>%
-            mutate(intlen = 1) %>%
-            add_surv_prob(fit, exclude = c("s(target_flock)", "s(environment_location)"))
-        # saving dataframe
-        df_i <- bind_rows(df_i, prediction)
+            flight_approach <- test_flight %>%
+                slice(round(47):n()) %>%
+                mutate(distance_z = distance_z - (120 - altitude))
+            # adding on explanitory variables
+            flight_log_new <- rbind(flight_ascent, flight_approach) %>%
+                select(
+                    distance_x,
+                    distance_z,
+                    velocity_x,
+                    velocity_y,
+                    velocity_z,
+                    acceleration) %>%
+                mutate(
+                    tend = row_number(),
+                    species = target,
+                    flight = ref_species$flight,
+                    flock = ref_species$flock,
+                    cloud_cover = ref$cloud_cover,
+                    high_tide = 0,
+                    wind_speed = ref$wind_speed,
+                    temperature = ref$temperature,
+                    location = ref$location,
+                    specification = "mavic 2 pro",
+                    obscuring = "not obscured",
+                    normalised_count = 0.5,
+                    altitude = altitude)
+            # predicting survival probability
+            prediction <- flight_log_new %>%
+                mutate(intlen = 1) %>%
+                add_surv_prob(fit, exclude = c("s(flight)", "s(flock)", "s(location)"))
+            # saving dataframe
+            df_i <- bind_rows(df_i, prediction)
+        }
     }
     return (df_i)
 }
 
 # test altitudes between 0 and 120m for all species in model
 altitudes <- seq_range(0:120, by = 10)
-survival_data <- log_simulator(fit, altitudes)
+target_birds <- unique(data_ped$species)
+
+survival_data <- log_simulator(fit, altitudes, target_birds)
 
 # creating and plotting example of output predicted probability
 flight_log <- survival_data %>%
-    filter(altitude == 120) %>%
+    filter(
+        species == "eastern curlew",
+        altitude == 120) %>%
     mutate(
         surv_prob = 1 - surv_prob,
         surv_lower = 1 - surv_lower,
         surv_upper = 1 - surv_upper) %>%
     mutate(
-        stimulus_dxy_m = stimulus_dxy_m / max(stimulus_dxy_m),
-        stimulus_dz_m = stimulus_dz_m / max(stimulus_dz_m)) %>%
+        distance_x = distance_x / max(distance_x),
+        distance_z = distance_z / max(distance_z)) %>%
     pivot_longer(
-        c(stimulus_dxy_m, stimulus_dz_m, surv_prob),
+        c(distance_x, distance_z, surv_prob),
         names_to = "legend",
         values_to = "line") %>%
     mutate(legend = case_when(
         legend == "surv_prob" ~ "Flight Probability [%]",
-        legend == "stimulus_dxy_m" ~ "Normalised Distance [0:300m]",
-        legend == "stimulus_dz_m" ~ "Normalised Altitude [0:120m]"))
+        legend == "distance_x" ~ "Normalised Distance [0:300m]",
+        legend == "distance_z" ~ "Normalised Altitude [0:120m]"))
 
 surv_plot <- ggplot() +
     geom_line(
@@ -147,8 +164,8 @@ ggsave("plots/plot_survival.png", surv_plot, height = 10, width = 10)
 
 # creating contour plot of flight probability for each species
 advancing <- survival_data %>%
-    mutate(stimulus_dz_m = round(stimulus_dz_m)) %>%
-    filter(stimulus_dz_m == altitude)
+    mutate(distance_z = round(distance_z)) %>%
+    filter(distance_z == altitude)
 
 # Creating line at 50% flight probability with corresponding CI
 ribbon <- advancing  %>%
@@ -171,7 +188,7 @@ fid_plot <- ggplot() +
     # create base contour plots
     geom_contour_filled(
         data = advancing,
-        aes(x = stimulus_dxy_m, y = stimulus_dz_m, z = surv_prob),
+        aes(x = distance_x, y = distance_z, z = surv_prob),
         binwidth = 0.1) +
     # define colours for flight probability contours
     scale_fill_brewer(
@@ -183,8 +200,8 @@ fid_plot <- ggplot() +
     geom_contour(
         data = ribbon,
         aes(
-            x = stimulus_dxy_m,
-            y = stimulus_dz_m,
+            x = distance_x,
+            y = distance_z,
             z = fit,
             linetype = `Confidence Intervals`),
         colour = "black",
@@ -195,13 +212,13 @@ fid_plot <- ggplot() +
     # add raw flight or no flight endpoints for sub-2kg drones
     geom_point(
         data = raw_data,
-        aes(x = stimulus_dxy_m, y = stimulus_dz_m,
+        aes(x = distance_x, y = distance_z,
         colour = factor(ped_status)),
         size = 10) +
     # define colours for raw data
     scale_color_manual(values = c("red", "green")) +
     # facet wrap by common name
-    facet_wrap("target_species") +
+    facet_wrap("species") +
     # make plot aesthetic
     theme_bw() +
     scale_x_continuous(limits = c(0, 300.5), expand = c(0, 0)) +

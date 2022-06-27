@@ -35,9 +35,10 @@ lapply(packages, require, character.only = TRUE)
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     # specify factors
-    mutate(target_flock = as.factor(target_flock))
-
-summary(data_ped)
+    mutate(
+        flight = as.factor(flight),
+        flock = as.factor(flock),
+        species = as.factor(species))
 
 ##############################
 #### Train and Save Model ####
@@ -48,22 +49,25 @@ system.time({
     fit <- gam(
         ped_status ~
         # stimulus
-        stimulus_specification +
-        s(stimulus_dxy_m, k = 5) +
-        s(stimulus_dz_m, k = 5) +
-        s(stimulus_vxy_ms, k = 5) +
-        s(stimulus_vz_ms, k = 5) +
+        specification +
+        s(distance_x, distance_z, by = species, k = 10) +
+        s(velocity_x, k = 5) +
+        s(velocity_y, k = 5) +
+        s(velocity_z, k = 5) +
+        s(acceleration, k = 5) +
         # environment
         s(tend, k = 5) +
-        environment_obscured +
-        s(environment_wind_ms, k = 5) +
-        s(environment_cloud_p, k = 5) +
-        s(environment_peaktide_hrs, k = 5) +
-        s(environment_temperature_dc, k = 5) +
-        environment_location +
+        obscuring +
+        s(wind_speed, k = 5) +
+        s(cloud_cover, k = 5) +
+        s(high_tide, k = 5) +
+        s(temperature, k = 5) +
+        location +
         # target
-        s(count_eastern_curlew, k = 5) +
-        s(target_flock, bs = "re"),
+        species +
+        s(normalised_count, k = 5) +
+        s(flock, bs = "re") +
+        s(flight, bs = "re"),
         data = data_ped,
         family = poisson(),
         method = "REML",

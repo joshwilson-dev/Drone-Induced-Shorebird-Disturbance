@@ -547,6 +547,7 @@ data_long <- data %>%
         y_vel_ms,
         xy_vel_ms,
         xb_vel_ms,
+        yb_vel_ms,
         z_disp_m,
         xy_disp_m,
         drone_obscured)
@@ -608,9 +609,6 @@ data_complete <- merge(data_wide_count, data_long) %>%
     #     sentinel_flight_proportion == "scattered" &
     #     sentinel_flight != "a" ~ paste0(sentinel_flight, "_partial"),
     #     TRUE ~ sentinel_flight)) %>%
-    mutate(sentinel_flight = case_when(
-        sentinel_flight == "a" ~ "null",
-        TRUE ~ sentinel_flight)) %>%
     # add sentinel count
     group_by(flight, time_since_launch) %>%
     mutate(
@@ -625,104 +623,136 @@ data_complete <- merge(data_wide_count, data_long) %>%
     fill(sentinel_count2) %>%
     mutate(
         sentinel_count = case_when(
-            sentinel_flight != "null" ~ sentinel_count2,
+            sentinel_flight != "a" ~ sentinel_count2,
             TRUE ~ 0)) %>%
-    select(-sentinel_count2, -sentinel_flight2, -sum_behaviour) %>%
-    # remove australian pelican
-    filter(common_name != "australian pelican")
+    select(-sentinel_count2, -sentinel_flight2, -sum_behaviour)
+
 
 # adding other variables
 data_final <- data_complete %>%
+    # remove flights where sentinels had an impact
+    group_by(flight, common_name) %>%
+    mutate(sentinel_check = case_when(
+        sentinel_flight != "a" &
+        behaviour == 1 &
+        common_name != "pied stilt" ~ 1,
+        TRUE ~ 0)) %>%
+    mutate(sentinel_check = case_when(
+        common_name == "pied stilt" &
+        sentinel_flight != "a" &
+        sentinel_flight != "eastern curlew" ~ 1,
+        TRUE ~ sentinel_check)) %>%
+    filter(max(sentinel_check) == 0) %>%
+    # split pied stilt into with and without eastern curlew
+    mutate(common_name = case_when(
+        common_name == "pied stilt" &
+        count_eastern_curlew != 0 ~ "pied stilt near eastern curlew",
+        TRUE ~ common_name)) %>%
+    # degrade data to every second to make the file smaller
     filter(time_since_launch %% 1 == 0) %>%
+    # select only species with good data
+    filter(
+        common_name == "eastern curlew" |
+        common_name == "pied stilt" |
+        common_name == "pied stilt near eastern curlew" |
+        common_name == "pied oystercatcher" |
+        common_name == "whimbrel" |
+        common_name == "gull billed tern" |
+        common_name == "caspian tern" |
+        common_name == "black swan" |
+        common_name == "australian pelican" |
+        common_name == "bar tailed godwit" |
+        common_name == "great knot"
+    ) %>%
     # approach ends if birds take flight
     group_by(flight, common_name, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
-    filter(common_name == "eastern curlew") %>%
     ungroup() %>%
     mutate(
-        target_species = common_name,
-        target_count = count,
-        target_latitude = lat,
-        target_longitude = long,
-        target_flock = flock,
-        target_life_stage = "non-breeding",
-        target_activity = "roosting",
-        target_age = "adult",
-        target_response = behaviour,
-        stimulus_type = "drone",
-        stimulus_shape = "quadcopter",
-        stimulus_diagonal_m = case_when(
+        species = common_name,
+        count = count,
+        latitude = lat,
+        longitude = long,
+        flock = flock,
+        life_stage = "non-breeding",
+        activity = "roosting",
+        age = "adult",
+        response = behaviour,
+        type = "drone",
+        shape = "quadcopter",
+        size = case_when(
             drone == "inspire 2" ~ 0.6,
             drone == "mavic 2 pro" ~ 0.35,
             drone == "phantom 4 pro" ~ 0.35,
             drone == "mavic mini" ~ 0.35),
-        stimulus_colour = case_when(
+        colour = case_when(
             drone == "inspire 2" ~ "grey",
             drone == "mavic 2 pro" ~ "grey",
             drone == "phantom 4 pro" ~ "white",
             drone == "mavic mini" ~ "grey"),
-        stimulus_noise_dBA_2m = case_when(
+        noise = case_when(
             drone == "inspire 2" ~ 78,
             drone == "mavic 2 pro" ~ 74,
             drone == "phantom 4 pro" ~ 75,
             drone == "mavic mini" ~ 70),
-        stimulus_specification = drone,
-        stimulus_latitude = drone_latitude_d,
-        stimulus_longitude = drone_longitude_d,
-        stimulus_dxy_m = xy_disp_m,
-        stimulus_dz_m = z_disp_m,
-        stimulus_vxy_ms = xb_vel_ms,
-        stimulus_vz_ms = z_vel_ms,
-        stimulus_axyz_mss = xyz_acc_mss,
-        environment_location = location,
-        environment_habitat = "IUCN:MT1.2",
-        environment_datetime = datetime_aest,
-        environment_temperature_dc = temperature_dc,
-        environment_wind_ms = wind_speed_ms,
-        environment_wind_d = wind_dir_d,
-        environment_cloud_p = cloud_cover_p,
-        environment_peaktide_hrs = hrs_from_high,
-        environment_obscured = drone_obscured,
-        environment_noise_dBA = 50,
-        environment_light_lux = 100000) %>%
+        specification = drone,
+        distance_x = xy_disp_m,
+        distance_z = z_disp_m,
+        velocity_x = xb_vel_ms,
+        velocity_y = yb_vel_ms,
+        velocity_z = z_vel_ms,
+        acceleration = xyz_acc_mss,
+        location = location,
+        habitat = "IUCN:MT1.2",
+        datetime = datetime_aest,
+        temperature = temperature_dc,
+        wind_speed = wind_speed_ms,
+        wind_direction = wind_dir_d,
+        cloud_cover = cloud_cover_p,
+        high_tide = hrs_from_high,
+        obscuring = drone_obscured,
+        background_noise = 50,
+        light = 100000) %>%
     filter(across(contains("count_"), ~ !max(0))) %>%
     select(
         test,
         approach,
+        flight,
         time_since_launch,
-        target_response,
-        target_species,
-        target_flock,
+        response,
+        species,
+        flock,
+        count,
+        normalised_count,
+        life_stage,
+        activity,
+        age,
         contains("count_"),
-        target_life_stage,
-        target_activity,
-        target_age,
-        target_latitude,
-        target_longitude,
-        stimulus_type,
-        stimulus_specification,
-        stimulus_diagonal_m,
-        stimulus_shape,
-        stimulus_colour,
-        stimulus_noise_dBA_2m,
-        stimulus_latitude,
-        stimulus_longitude,
-        stimulus_dxy_m,
-        stimulus_dz_m,
-        stimulus_vxy_ms,
-        stimulus_vz_ms,
-        stimulus_axyz_mss,
-        environment_location,
-        environment_habitat,
-        environment_datetime,
-        environment_temperature_dc,
-        environment_wind_ms,
-        environment_wind_d,
-        environment_cloud_p,
-        environment_peaktide_hrs,
-        environment_obscured,
-        environment_noise_dBA,
-        environment_light_lux)
+        type,
+        specification,
+        size,
+        shape,
+        colour,
+        noise,
+        distance_x,
+        distance_z,
+        velocity_x,
+        velocity_y,
+        velocity_z,
+        acceleration,
+        latitude,
+        longitude,
+        location,
+        habitat,
+        datetime,
+        temperature,
+        wind_speed,
+        wind_direction,
+        cloud_cover,
+        high_tide,
+        obscuring,
+        background_noise,
+        light)
 
 ##################
 #### Save CSV ####
@@ -730,5 +760,23 @@ data_final <- data_complete %>%
 
 write.csv(
     data_final,
-    "dibd_data.csv",
+    "data/dibd_data.csv",
     row.names = FALSE)
+
+ggplot(arrange(data_final, response), aes(x = distance_x, y = distance_z, colour = response)) +
+geom_point() +
+facet_wrap("species")
+
+data_raw1 <- data_final %>%
+    filter(count_eastern_curlew > 0)
+
+data_raw2 <- data_final %>%
+    filter(count_eastern_curlew == 0)
+
+ggplot(arrange(data_raw1, response), aes(x = distance_x, y = distance_z, colour = response)) +
+geom_point() +
+facet_wrap("species")
+
+ggplot(arrange(data_raw2, response), aes(x = distance_x, y = distance_z, colour = response)) +
+geom_point() +
+facet_wrap("species")

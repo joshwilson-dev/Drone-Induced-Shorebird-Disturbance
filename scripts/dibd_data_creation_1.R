@@ -43,9 +43,22 @@ data <- read_csv("data/dibd_data.csv")
 prepare_data <- function(df) {
     # create ped parameters
     data_ped <- df %>%
-        group_by(test, approach, target_species) %>%
+        # filter out some species
+        filter(
+            species == "eastern curlew" |
+            species == "pied stilt" |
+            species == "pied stilt with eastern curlew") %>%
+        # only keep event time points
+        group_by(flight, species) %>%
+        mutate(keep = case_when(
+            response == 1 ~ 1,
+            # time_since_launch %% 1 == 0 ~ 1,
+            TRUE ~ 0)) %>%
+        group_by(time_since_launch) %>%
+        filter(max(keep) == 1) %>%
+        group_by(flight, species) %>%
         mutate(
-            ped_status = lead(target_response),
+            ped_status = lead(response),
             tstart = time_since_launch,
             tend = lead(time_since_launch),
             interval = tend - tstart,
