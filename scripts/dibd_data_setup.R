@@ -627,43 +627,27 @@ data_complete <- merge(data_wide_count, data_long) %>%
             TRUE ~ 0)) %>%
     select(-sentinel_count2, -sentinel_flight2, -sum_behaviour)
 
-
 # adding other variables
 data_final <- data_complete %>%
-    # remove flights where sentinels had an impact
-    group_by(flight, common_name) %>%
-    mutate(sentinel_check = case_when(
-        sentinel_flight != "a" &
-        behaviour == 1 &
-        common_name != "pied stilt" ~ 1,
-        TRUE ~ 0)) %>%
-    mutate(sentinel_check = case_when(
-        common_name == "pied stilt" &
-        sentinel_flight != "a" &
-        sentinel_flight != "eastern curlew" ~ 1,
-        TRUE ~ sentinel_check)) %>%
-    filter(max(sentinel_check) == 0) %>%
-    # split pied stilt into with and without eastern curlew
-    mutate(common_name = case_when(
-        common_name == "pied stilt" &
-        count_eastern_curlew != 0 ~ "pied stilt near eastern curlew",
-        TRUE ~ common_name)) %>%
     # degrade data to every second to make the file smaller
     filter(time_since_launch %% 1 == 0) %>%
-    # select only species with good data
+    # select only some species
     filter(
         common_name == "eastern curlew" |
-        common_name == "pied stilt" |
-        common_name == "pied stilt near eastern curlew" |
-        common_name == "pied oystercatcher" |
+        common_name == "bar tailed godwit" |
         common_name == "whimbrel" |
         common_name == "gull billed tern" |
+        common_name == "great knot" |
         common_name == "caspian tern" |
-        common_name == "black swan" |
-        common_name == "australian pelican" |
-        common_name == "bar tailed godwit" |
-        common_name == "great knot"
-    ) %>%
+        common_name == "pied stilt" |
+        common_name == "pied oystercatcher" |
+        common_name == "black swan") %>%
+    # remove flights where sentinel impacted results
+    group_by(flight, common_name) %>%
+    mutate(sentinel_check = case_when(
+        sentinel_flight != "a" & behaviour == 1 ~ 1,
+        TRUE ~ 0)) %>%
+    filter(max(sentinel_check) == 0) %>%
     # approach ends if birds take flight
     group_by(flight, common_name, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
@@ -723,7 +707,6 @@ data_final <- data_complete %>%
         species,
         flock,
         count,
-        normalised_count,
         life_stage,
         activity,
         age,
@@ -763,20 +746,14 @@ write.csv(
     "data/dibd_data.csv",
     row.names = FALSE)
 
-ggplot(arrange(data_final, response), aes(x = distance_x, y = distance_z, colour = response)) +
-geom_point() +
+ggplot() +
+scale_color_manual(values = c("green", "red")) +
+geom_point(data = filter(data_final, response == 0), aes(x = distance_x, y = distance_z), colour = "green") +
+geom_point(data = filter(data_final, response == 1), aes(x = distance_x, y = distance_z), colour = "red") +
 facet_wrap("species")
 
-data_raw1 <- data_final %>%
-    filter(count_eastern_curlew > 0)
-
-data_raw2 <- data_final %>%
-    filter(count_eastern_curlew == 0)
-
-ggplot(arrange(data_raw1, response), aes(x = distance_x, y = distance_z, colour = response)) +
-geom_point() +
-facet_wrap("species")
-
-ggplot(arrange(data_raw2, response), aes(x = distance_x, y = distance_z, colour = response)) +
-geom_point() +
-facet_wrap("species")
+check <- data_final %>%
+    filter(
+        species == "bar tailed godwit",
+        response == 1) %>%
+    select(test, approach, response, distance_x, distance_z, specification)

@@ -38,7 +38,10 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     mutate(
         flight = as.factor(flight),
         flock = as.factor(flock),
-        species = as.factor(species))
+        species = as.factor(species)) %>%
+    # normalie count
+    group_by(species) %>%
+    mutate(normalised_count = count / max(count))
 
 ##############################
 #### Train and Save Model ####
@@ -50,7 +53,8 @@ system.time({
         ped_status ~
         # stimulus
         specification +
-        s(distance_x, distance_z, by = species, k = 10) +
+        s(distance_x, by = species, k = 5) +
+        s(distance_z, by = species, k = 5) +
         s(velocity_x, k = 5) +
         s(velocity_y, k = 5) +
         s(velocity_z, k = 5) +
@@ -66,8 +70,8 @@ system.time({
         # target
         species +
         s(normalised_count, k = 5) +
-        s(flock, bs = "re") +
-        s(flight, bs = "re"),
+        s(flight, bs = "re") +
+        s(flock, bs = "re"),
         data = data_ped,
         family = poisson(),
         method = "REML",
