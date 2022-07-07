@@ -43,7 +43,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 ###########################################################################
 
 # load model
-fit <- readRDS("models/dibd-model-27-06-22_10-04.rds")
+fit <- readRDS("models/dibd-model-06-07-22_09-38.rds")
 
 summary(fit)
 # determine the mean, or mode for all numerical or categorical variables
