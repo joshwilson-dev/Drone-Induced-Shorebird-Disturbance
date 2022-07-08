@@ -43,161 +43,137 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 #########################
 # load model and print outputs
 fit <- readRDS("models/dibd-model-26-06-22_21-33.rds")
-
 summary(fit)
 
 # create dataframes investigating fit of each model parameter individually
-new_data <- function(var1, var2) {
-    print(paste(var1, var2))
+new_data <- function(variable) {
+    print(variable)
     df_i <- data.frame()
-    var1_type <- typeof(eval(parse(text = paste0("data_ped$", var1))))
+    variable_type <- typeof(eval(parse(text = paste0("data_ped$", variable))))
     # the below creates a dataframe varying the specified variables then
     # determines the contribution of that variable to the fit of the model
     new_dataframe <- data_ped %>%
         ungroup() %>%
         mutate(na = 0) %>%
-        mutate(new_col1 = !!sym(var1)) %>%
-        mutate(new_col2 = !!sym(var2)) %>%
+        mutate(new_col1 = !!sym(variable)) %>%
     {
-        # if there is no interaction term
-        if (var2 == "na") {
-            # if the explanitory variable is numerical
-            if (var1_type == "double") {
-                # create dataset with specified variable varying
-                make_newdata(
-                    .,
-                    new_col1 = seq_range(!!sym(var1), n = 100)) %>%
-                mutate(sentinel_flight = TRUE) %>%
-                select(-!!sym(var1)) %>%
-                rename({{var1}} := new_col1) %>%
-                # use model to predict contribution of explanitory variable
-                add_term(., fit, term = var1)
-            }
-            # if the explanitory variable is catagorical
-            else {
-                make_newdata(., new_col1 = unique(!!sym(var1))) %>%
-                select(-!!sym(var1)) %>%
-                rename({{var1}} := new_col1) %>%
-                add_term(., fit, term = var1)
-            }
-        }
-        # if there is an interaction term
-        else {
+        # if distance, then interaction with species
+        if (variable == "distance_x" | variable == "distance_z") {
+            # create dataset with specified variable varying
             make_newdata(
                 .,
-                species = unique(species),
-                new_col1 = seq_range(!!sym(var1), n = 100),
-                new_col2 = seq_range(!!sym(var2), n = 100)) %>%
-            select(-!!sym(var1)) %>%
-            rename({{var1}} := new_col1) %>%
-            select(-!!sym(var2)) %>%
-            rename({{var2}} := new_col2) %>%
-            add_term(., fit, term = c("species", paste0(var1, ",", var2)))
+                new_col1 = seq_range(!!sym(variable), n = 100),
+                species = unique(species)) %>%
+            mutate(sentinel_flight = TRUE) %>%
+            select(-!!sym(variable)) %>%
+            rename({{variable}} := new_col1) %>%
+            # use model to predict contribution of explanitory variable
+            add_term(., fit, term = c(variable, "species"))
+        }
+        # if the explanitory variable is numerical
+        else if (variable_type == "double") {
+            # create dataset with specified variable varying
+            make_newdata(
+                .,
+                new_col1 = seq_range(!!sym(variable), n = 100)) %>%
+            mutate(sentinel_flight = TRUE) %>%
+            select(-!!sym(variable)) %>%
+            rename({{variable}} := new_col1) %>%
+            # use model to predict contribution of explanitory variable
+            add_term(., fit, term = variable)
+        }
+        # if the explanitory variable is catagorical
+        else {
+            make_newdata(., new_col1 = unique(!!sym(variable))) %>%
+            select(-!!sym(variable)) %>%
+            rename({{variable}} := new_col1) %>%
+            add_term(., fit, term = variable)
         }
     }
     df_i <- bind_rows(df_i, new_dataframe)
     assign(
-        paste0("fit_", var1, "_", var2),
+        paste0("fit_", variable),
         df_i,
         envir = .GlobalEnv)
 }
 
 # run the above function for each explanitory variable
-predictors <- data.frame(
-    var1 = c(
-        "specification",
-        "distance_x",
-        "velocity_x",
-        "velocity_y",
-        "velocity_z",
-        "acceleration",
-        "tend",
-        "obscuring",
-        "wind_speed",
-        "cloud_cover",
-        "high_tide",
-        "temperature",
-        "location",
-        "normalised_count",
-        "flock",
-        "flight"),
-    var2 = c(
-        "na",
-        "distance_z",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na",
-        "na"))
+variables <- c(
+    "specification",
+    "distance_x",
+    "distance_z",
+    "velocity_x",
+    "velocity_y",
+    "velocity_z",
+    "acceleration",
+    "tend",
+    "obscuring",
+    "wind_speed",
+    "cloud_cover",
+    "high_tide",
+    "temperature",
+    "location",
+    "normalised_count",
+    "flock",
+    "flight")
 
-invisible(mapply(new_data, predictors$var1, predictors$var2))
+invisible(mapply(new_data, variables))
 
 # plot the contribution of each explnitory variable
-plot_fit <- function(var1, var2, target) {
-    dataframe <- eval(parse(text = paste0("fit_", var1, "_", var2)))
-    var1_type <- typeof(
-        eval(parse(text = paste0("fit_", var1, "_", var2, "$", var1))))
+plot_fit <- function(variable, target) {
+    dataframe <- eval(parse(text = paste0("fit_", variable)))
+    variable_type <- typeof(
+        eval(parse(text = paste0("fit_", variable, "$", variable))))
     height <- 10
     width <- 10
-    title <- paste0("plots/plot_", var1, "_", var2, ".png")
-    # if no interaction
-    if (var2 == "na") {
-        # if numerical predictor
-        if (var1_type == "double") {
-            plot <- (
-                ggplot(data = dataframe, aes(.data[[var1]], y = fit)) +
-                geom_line() +
-                coord_cartesian(ylim = c(-10, 10)) +
-                geom_ribbon(
-                    aes(ymin = ci_lower, ymax = ci_upper),
-                    alpha = 0.2) +
-                ylab("Effect"))
-        }
-        # if categorical predictor
-        else {
-            plot <- (
-                ggplot(data = dataframe, aes(.data[[var1]], y = fit)) +
-                coord_cartesian(ylim = c(-10, 10)) +
-                geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
-                ylab("Effect"))
-        }
+    title <- paste0("plots/", variable, ".png")
+    # if distance, then interaction with species
+    if (variable == "distance_x" | variable == "distance_z") {
+        plot <- (
+            ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
+            geom_line() +
+            coord_cartesian(ylim = c(-10, 10)) +
+            geom_ribbon(
+                aes(ymin = ci_lower, ymax = ci_upper),
+                alpha = 0.2) +
+            ylab("Effect")) +
+            facet_wrap("species")
+        height <- 17
+        width <- 17
     }
-    # if interaction
+    # if numerical predictor
+    else if (variable_type == "double") {
+        plot <- (
+            ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
+            geom_line() +
+            coord_cartesian(ylim = c(-10, 10)) +
+            geom_ribbon(
+                aes(ymin = ci_lower, ymax = ci_upper),
+                alpha = 0.2) +
+            ylab("Effect"))
+    }
+    # if categorical predictor
     else {
-        dataframe <- dataframe %>%
-        filter(!!sym(var1) >= 0, !!sym(var1) <= 500)
-        title <- paste0("plots/plot_", var1, "_", var2, "_", target, ".png")
-        plot <- ggplot(
-                data = filter(dataframe, species == target),
-                aes(x = .data[[var1]], y = .data[[var2]], z = fit)) +
-            geom_raster(aes(fill = fit)) +
-            geom_contour(colour = "black") +
-            facet_wrap("species", scales = "free") +
-            scale_fill_gradientn(colours = c("green", "red")) +
-            xlab("Horizontal Distance [m]") +
-            ylab("Altitude [m]")
+        plot <- (
+            ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
+            coord_cartesian(ylim = c(-10, 10)) +
+            geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
+            ylab("Effect"))
     }
     # Setting axis labels
-    if (var1 == "velocity_x") plot <- plot + xlab("Approach Velocity [m/s]")
-    if (var1 == "velocity_y") plot <- plot + xlab("Perpendicular Velocity [m/s]")
-    if (var1 == "velocity_z") plot <- plot + xlab("Ascent Velocity [m/s]")
-    if (var1 == "acceleration") plot <- plot + xlab("Acceleration [m/s/s]")
-    if (var1 == "tend") plot <- plot + xlab("Time Since Launch [s]")
-    if (var1 == "wind_speed") plot <- plot + xlab("Wind Speed [m/s]")
-    if (var1 == "cloud_cover") plot <- plot + xlab("Cloud Cover [%]")
-    if (var1 == "high_tide") plot <- plot + xlab("Time From High Tide [hr]")
-    if (var1 == "temperature") plot <- plot + xlab("Temperature (\u00B0C)")
-    if (var1 == "flight") plot <- plot + xlab("Flight")
-    if (var1 == "flock") plot <- plot + xlab("Flock")
+    if (variable == "distance_x") plot <- plot + xlab("Ground Distance [m]")
+    if (variable == "distance_z") plot <- plot + xlab("Height [m]")
+    if (variable == "velocity_x") plot <- plot + xlab("Approach Velocity [m/s]")
+    if (variable == "velocity_y") plot <- plot + xlab("Perpendicular Velocity [m/s]")
+    if (variable == "velocity_z") plot <- plot + xlab("Ascent Velocity [m/s]")
+    if (variable == "acceleration") plot <- plot + xlab("Acceleration [m/s/s]")
+    if (variable == "tend") plot <- plot + xlab("Time Since Launch [s]")
+    if (variable == "wind_speed") plot <- plot + xlab("Wind Speed [m/s]")
+    if (variable == "cloud_cover") plot <- plot + xlab("Cloud Cover [%]")
+    if (variable == "high_tide") plot <- plot + xlab("Time From High Tide [hr]")
+    if (variable == "temperature") plot <- plot + xlab("Temperature (\u00B0C)")
+    if (variable == "flight") plot <- plot + xlab("Flight")
+    if (variable == "flock") plot <- plot + xlab("Flock")
     # making plot aesthetics
     plot <- plot +
         theme_bw() +
@@ -214,11 +190,13 @@ plot_fit <- function(var1, var2, target) {
             legend.text.align = 0.5,
             legend.box.background = element_rect(color = "black", size = 1),
             legend.text = element_text(size = 30),
-            legend.title = element_text(size = 30, face = "bold"))
-    if (var1_type == "double") {
+            legend.title = element_text(size = 30, face = "bold"),
+            panel.spacing = unit(2, "cm"),
+            strip.text = element_text(size = 25))
+    if (variable_type == "double") {
         plot <- plot +
             scale_x_continuous(expand = c(0, 0))}
-    if (var1 == "species" | var1 == "specification" | var1 == "location") {
+    if (variable == "species" | variable == "specification" | variable == "location") {
         height <- 15
         width <- 12.5
         plot <- plot +
@@ -228,13 +206,11 @@ plot_fit <- function(var1, var2, target) {
                     angle = 90,
                     vjust = 0.5,
                     hjust = 0.95))}
-    if (var1 == "flight" | var1 == "flock") {
+    if (variable == "flight" | variable == "flock") {
         plot <- plot + theme(axis.text.x = element_blank())}
     # saving the plots
     ggsave(title, plot, height = height, width = width)
 }
 
 # running plot_fit function for each explanitory variable
-mapply(plot_fit, predictors$var1, predictors$var2)
-plot_fit("distance_x", "distance_z", "pied stilt near eastern curlew")
-unique(data_ped$species)
+mapply(plot_fit, variables)

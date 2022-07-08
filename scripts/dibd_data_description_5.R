@@ -48,9 +48,9 @@ total_appraoches <- data_ped %>%
 View(total_appraoches)
 
 approaches_per_species <- data_ped %>%
-    group_by(flight, common_name) %>%
+    group_by(flight, species) %>%
     slice(1) %>%
-    group_by(common_name) %>%
+    group_by(species) %>%
     summarise(count = n())
 
 View(approaches_per_species)
@@ -66,7 +66,7 @@ View(approaches_per_site)
 approaches_per_drone <- data_ped %>%
     group_by(flight) %>%
     slice(1) %>%
-    group_by(drone) %>%
+    group_by(specification) %>%
     summarise(count = n())
 
 View(approaches_per_drone)

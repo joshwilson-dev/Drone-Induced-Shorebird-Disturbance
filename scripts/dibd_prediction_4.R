@@ -114,17 +114,22 @@ log_simulator <- function(fit, altitude_list, species_list) {
 altitudes <- seq_range(0:120, by = 10)
 target_birds <- unique(data_ped$species)
 
-survival_data <- log_simulator(fit, altitudes, target_birds)
-
-# creating and plotting example of output predicted probability
-flight_log <- survival_data %>%
-    filter(
-        species == "eastern curlew",
-        altitude == 120) %>%
+survival_dat <- log_simulator(fit, altitudes, target_birds)
+survival_data <- survival_dat %>%
     mutate(
         surv_prob = 1 - surv_prob,
         surv_lower = 1 - surv_lower,
         surv_upper = 1 - surv_upper) %>%
+    mutate(
+        surv_prob = case_when(surv_prob == 1 ~ 0.9999999, TRUE ~ surv_prob),
+        surv_lower = case_when(surv_lower == 1 ~ 0.9999999, TRUE ~ surv_lower),
+        surv_upper = case_when(surv_upper == 1 ~ 0.9999999, TRUE ~ surv_upper))
+
+# creating and plotting example of output predicted probability
+flight_log <- survival_data %>%
+    filter(
+        altitude == 120,
+        species == "eastern curlew") %>%
     mutate(
         distance_x = distance_x / max(distance_x),
         distance_z = distance_z / max(distance_z)) %>%
@@ -133,34 +138,34 @@ flight_log <- survival_data %>%
         names_to = "legend",
         values_to = "line") %>%
     mutate(legend = case_when(
-        legend == "surv_prob" ~ "Flight Probability [%]",
-        legend == "distance_x" ~ "Normalised Distance [0:300m]",
+        legend == "surv_prob" ~ "Probability of Birds Not Taking Flight",
+        legend == "distance_x" ~ "Normalised Distance [0:500m]",
         legend == "distance_z" ~ "Normalised Altitude [0:120m]"))
 
 surv_plot <- ggplot() +
     geom_line(
         data = flight_log,
-        aes(y = line, x = tend, colour = legend),
+        aes(y = line, x = tend, linetype = legend),
         size = 1) +
     geom_ribbon(
-        data = filter(flight_log, legend == "Flight Probability [%]"),
+        data = filter(flight_log, legend == "Probability of Birds Not Taking Flight"),
         aes(x = tend, ymin = surv_lower, ymax = surv_upper),
-        alpha = 0.3,
-        fill = "black") +
-    scale_color_manual(values = c("black", "green", "red")) +
+        alpha = 0.3) +
+    scale_linetype_manual(values = c("dotted", "longdash", "solid")) +
     xlab("Time Since Launch [s]") +
     ylab("Normalised Values") +
     coord_cartesian(ylim = c(0, 1)) +
     theme_bw() +
     theme(
-        axis.text = element_text(size = 40),
-        axis.title = element_text(size = 40, face = "bold"),
         legend.title = element_blank(),
-        legend.text = element_text(size = 20),
-        legend.position = c(0.70, 0.125),
-        legend.box.background = element_rect(colour = "black"))
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 15),
+        legend.text = element_text(size = 15)) +
+    guides(linetype = guide_legend(nrow = 3))
 
-ggsave("plots/plot_survival.png", surv_plot, height = 10, width = 10)
+ggsave("plots/eastern_curlew_flight_probability.png", surv_plot, height = 10, width = 10)
 
 # creating contour plot of flight probability for each species
 advancing <- survival_data %>%
@@ -179,34 +184,37 @@ ribbon <- advancing  %>%
         `Confidence Intervals` == "surv_lower" ~ "95% Lower Confidence Interval"))
 
 raw_data <- data_ped %>%
+    # filter(
+    #     specification != "inspire 2") %>%
     mutate(ped_status = case_when(
         ped_status == 1 ~ "Flight",
         ped_status == 0 ~ "No Flight")) %>%
-    arrange(desc(ped_status))
+    arrange(desc(ped_status)) %>%
+    filter(ped_status == "Flight" | time_since_launch %% 5 == 0)
 
 fid_plot <- ggplot() +
     # create base contour plots
-    geom_contour_filled(
-        data = advancing,
-        aes(x = distance_x, y = distance_z, z = surv_prob),
-        binwidth = 0.1) +
+    # geom_contour_filled(
+    #     data = advancing,
+    #     aes(x = distance_x, y = distance_z, z = surv_prob),
+    #     binwidth = 0.1) +
     # define colours for flight probability contours
     scale_fill_brewer(
         type = "div",
-        palette = 8,
-        direction = 1,
+        palette = 5,
+        direction = -1,
         aesthetics = "fill") +
     # add line and ribbons at 50% flight probability
-    geom_contour(
-        data = ribbon,
-        aes(
-            x = distance_x,
-            y = distance_z,
-            z = fit,
-            linetype = `Confidence Intervals`),
-        colour = "black",
-        binwidth = 0.5,
-        size = 3) +
+    # geom_contour(
+    #     data = ribbon,
+    #     aes(
+    #         x = distance_x,
+    #         y = distance_z,
+    #         z = fit,
+    #         linetype = `Confidence Intervals`),
+    #     colour = "black",
+    #     binwidth = 0.5,
+    #     size = 4) +
     # define colours for 50% flight prob
     scale_linetype_manual(values = c("solid", "dashed", "dashed")) +
     # add raw flight or no flight endpoints for sub-2kg drones
@@ -216,26 +224,27 @@ fid_plot <- ggplot() +
         colour = factor(ped_status)),
         size = 10) +
     # define colours for raw data
-    scale_color_manual(values = c("red", "green")) +
+    scale_color_manual(values = c("red", "blue")) +
     # facet wrap by common name
     facet_wrap("species") +
     # make plot aesthetic
     theme_bw() +
-    scale_x_continuous(limits = c(0, 300.5), expand = c(0, 0)) +
-    # scale_x_continuous(expand = c(0, 0)) +
+    scale_x_continuous(limits = c(0, 500), expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
-    # scale_y_continuous(expand = c(0, 0)) +
     xlab("Horizontal Distance [m]") +
     ylab("Altitude [m]") +
     labs(fill = "Predicted Flight Probability") +
     labs(colour = "Raw Data") +
+    ggtitle("Mavic 2 Pro, Phantom 4 Pro, and Mavic Mini Induced Bird Flight") +
+    # ggtitle("Inspire 2 Induced Bird Flight") +
     theme(
+        plot.title = element_text(hjust = 0.5, size = 80),
         panel.spacing = unit(5, "lines"),
         strip.text = element_text(size = 60, face = "bold"),
         plot.margin = margin(1, 1, 1, 1, "in"),
         axis.ticks = element_line(size = 2),
         axis.ticks.length = unit(.15, "in"),
-        axis.text = element_text(size = 60),
+        axis.text = element_text(size = 60, colour = "black"),
         axis.title = element_text(size = 80, face = "bold"),
         legend.position = "bottom",
         legend.key.size = unit(1.5, "in"),
@@ -244,7 +253,15 @@ fid_plot <- ggplot() +
         legend.box = "horizontal",
         legend.margin = margin(1, 2, 0, 2, unit = "in"),
         legend.text = element_text(size = 50),
-        legend.title = element_text(size = 60, face = "bold")) +
+        legend.title = element_text(size = 60, face = "bold"),
+        # transparent background
+        panel.background = element_rect(fill = "transparent", colour = NA_character_),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "transparent", colour = NA_character_),
+        legend.background = element_rect(fill = "transparent", colour = NA_character_),
+        legend.box.background = element_rect(fill = "transparent", colour = NA_character_),
+        legend.key = element_rect(fill = "transparent")) +
         guides(
             colour = guide_legend(
                 nrow = 2,
@@ -259,4 +276,4 @@ fid_plot <- ggplot() +
                 title.position = "top",
                 title.hjust = 0.5))
 # save plot
-ggsave("plots/plot_flight_initiation_distance.png", fid_plot, height = 40, width = 40, limitsize = FALSE)
+ggsave("plots/m2p_p4p_mm_raw.png", fid_plot, height = 40, width = 40, limitsize = FALSE)
