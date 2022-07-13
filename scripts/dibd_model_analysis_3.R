@@ -42,7 +42,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 #### Analysis of fit ####
 #########################
 # load model and print outputs
-fit <- readRDS("models/dibd-model-26-06-22_21-33.rds")
+fit <- readRDS("models/dibd-model-12-07-22_08-57.rds")
 summary(fit)
 
 # create dataframes investigating fit of each model parameter individually
@@ -57,8 +57,8 @@ new_data <- function(variable) {
         mutate(na = 0) %>%
         mutate(new_col1 = !!sym(variable)) %>%
     {
-        # if distance, then interaction with species
-        if (variable == "distance_x" | variable == "distance_z") {
+        # if altitude then interaction with species
+        if (variable == "distance_z") {
             # create dataset with specified variable varying
             make_newdata(
                 .,
@@ -128,7 +128,7 @@ plot_fit <- function(variable, target) {
     width <- 10
     title <- paste0("plots/", variable, ".png")
     # if distance, then interaction with species
-    if (variable == "distance_x" | variable == "distance_z") {
+    if (variable == "distance_z") {
         plot <- (
             ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
             geom_line() +
@@ -172,6 +172,7 @@ plot_fit <- function(variable, target) {
     if (variable == "cloud_cover") plot <- plot + xlab("Cloud Cover [%]")
     if (variable == "high_tide") plot <- plot + xlab("Time From High Tide [hr]")
     if (variable == "temperature") plot <- plot + xlab("Temperature (\u00B0C)")
+    if (variable == "normalised_count") plot <- plot + xlab("Normalised Count")
     if (variable == "flight") plot <- plot + xlab("Flight")
     if (variable == "flock") plot <- plot + xlab("Flock")
     # making plot aesthetics

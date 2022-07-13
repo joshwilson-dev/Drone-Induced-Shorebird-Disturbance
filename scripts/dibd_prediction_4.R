@@ -51,9 +51,8 @@ ref <- data_ped %>%
     ungroup() %>%
     sample_info()
 
-# load test flight launched from 300m, approach at 120m
-test_flight <- read_csv("data/dibd_test_flight.csv") %>%
-    filter(time_since_launch %% 1 == 0)
+# load test flight launched from 500m, approach at 120m
+test_flight <- read_csv("data/dibd_test_flight.csv")
 
 # This function adds the required explanitory variables to the test flight
 log_simulator <- function(fit, altitude_list, species_list) {
@@ -205,16 +204,16 @@ fid_plot <- ggplot() +
         direction = -1,
         aesthetics = "fill") +
     # add line and ribbons at 50% flight probability
-    # geom_contour(
-    #     data = ribbon,
-    #     aes(
-    #         x = distance_x,
-    #         y = distance_z,
-    #         z = fit,
-    #         linetype = `Confidence Intervals`),
-    #     colour = "black",
-    #     binwidth = 0.5,
-    #     size = 4) +
+    geom_contour(
+        data = ribbon,
+        aes(
+            x = distance_x,
+            y = distance_z,
+            z = fit,
+            linetype = `Confidence Intervals`),
+        colour = "black",
+        binwidth = 0.5,
+        size = 4) +
     # define colours for 50% flight prob
     scale_linetype_manual(values = c("solid", "dashed", "dashed")) +
     # add raw flight or no flight endpoints for sub-2kg drones
@@ -235,7 +234,7 @@ fid_plot <- ggplot() +
     ylab("Altitude [m]") +
     labs(fill = "Predicted Flight Probability") +
     labs(colour = "Raw Data") +
-    ggtitle("Mavic 2 Pro, Phantom 4 Pro, and Mavic Mini Induced Bird Flight") +
+    ggtitle("Drone Induced Bird Flight - Data") +
     # ggtitle("Inspire 2 Induced Bird Flight") +
     theme(
         plot.title = element_text(hjust = 0.5, size = 80),
@@ -276,4 +275,4 @@ fid_plot <- ggplot() +
                 title.position = "top",
                 title.hjust = 0.5))
 # save plot
-ggsave("plots/m2p_p4p_mm_raw.png", fid_plot, height = 40, width = 40, limitsize = FALSE)
+ggsave("plots/m2p_flight_initiation_distance.png", fid_plot, height = 40, width = 40, limitsize = FALSE)

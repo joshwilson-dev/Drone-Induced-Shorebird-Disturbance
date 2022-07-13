@@ -38,10 +38,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     mutate(
         flight = as.factor(flight),
         flock = as.factor(flock),
-        species = as.factor(species)) %>%
-    # normalie count
-    group_by(species) %>%
-    mutate(normalised_count = count / max(count))
+        species = as.factor(species))
 
 ##############################
 #### Train and Save Model ####
@@ -53,7 +50,7 @@ system.time({
         ped_status ~
         # stimulus
         specification +
-        s(distance_x, by = species, k = 5) +
+        s(distance_x, k = 5) +
         s(distance_z, by = species, k = 5) +
         s(velocity_x, k = 5) +
         s(velocity_y, k = 5) +
