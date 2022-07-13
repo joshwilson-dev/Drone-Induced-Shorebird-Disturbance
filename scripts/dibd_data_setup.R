@@ -429,6 +429,12 @@ data_long <- data %>%
             (lat - drone_latitude_d))^2 +
             ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
             (long - drone_longitude_d))) ^ 2)),
+        # add in distance between eastern curlew and birds
+        # distance_eastern_curlew = (
+        #     6371009 * sqrt(((pi / 180) *
+        #     (lat - drone_latitude_d))^2 +
+        #     ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
+        #     (long - drone_longitude_d))) ^ 2)),
         xyz_disp_m = (xy_disp_m**2 + z_disp_m**2)**0.5,
         # round latitude and longitude for location
         lat_rnd = round(lat, 2),
@@ -642,17 +648,18 @@ data_final <- data_complete %>%
         common_name == "pied stilt" |
         common_name == "pied oystercatcher" |
         common_name == "black swan") %>%
-    # remove flights where sentinel impacted results
+    # remove flights where sentinel impacted results unless it was eastern curlew
     group_by(flight, common_name) %>%
     mutate(sentinel_check = case_when(
-        sentinel_flight != "a" & behaviour == 1 ~ 1,
-        TRUE ~ 0)) %>%
+        sentinel_flight == "a" | sentinel_flight == "eastern curlew" ~ 0,
+        TRUE ~ 1)) %>%
     filter(max(sentinel_check) == 0) %>%
     # approach ends if birds take flight
     group_by(flight, common_name, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
     ungroup() %>%
     mutate(
+        sentinel = sentinel_flight,
         species = common_name,
         count = count,
         latitude = lat,
@@ -709,6 +716,7 @@ data_final <- data_complete %>%
         count,
         life_stage,
         activity,
+        sentinel,
         age,
         contains("count_"),
         type,
@@ -737,6 +745,8 @@ data_final <- data_complete %>%
         background_noise,
         light)
 
+unique(data_final$sentinel)
+
 ##################
 #### Save CSV ####
 ##################
@@ -751,9 +761,3 @@ scale_color_manual(values = c("green", "red")) +
 geom_point(data = filter(data_final, response == 0), aes(x = distance_x, y = distance_z), colour = "green") +
 geom_point(data = filter(data_final, response == 1), aes(x = distance_x, y = distance_z), colour = "red") +
 facet_wrap("species")
-
-check <- data_final %>%
-    filter(
-        species == "bar tailed godwit",
-        response == 1) %>%
-    select(test, approach, response, distance_x, distance_z, specification)

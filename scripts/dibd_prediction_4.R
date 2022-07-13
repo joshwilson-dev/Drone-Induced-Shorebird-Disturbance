@@ -34,16 +34,18 @@ lapply(packages, require, character.only = TRUE)
 
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
+    # specify factors
     mutate(
+        flight = as.factor(flight),
         flock = as.factor(flock),
-        flight = as.factor(flight))
+        species = as.factor(species))
 
 ###########################################################################
 #### Survival Probability and Flight Initiation Distance Visualisation ####
 ###########################################################################
 
 # load model
-fit <- readRDS("models/dibd-model-06-07-22_09-38.rds")
+fit <- readRDS("models/model.rds")
 
 summary(fit)
 # determine the mean, or mode for all numerical or categorical variables
@@ -97,6 +99,7 @@ log_simulator <- function(fit, altitude_list, species_list) {
                     specification = "mavic 2 pro",
                     obscuring = "not obscured",
                     normalised_count = 0.5,
+                    # sentinel = "a",
                     altitude = altitude)
             # predicting survival probability
             prediction <- flight_log_new %>%
@@ -193,10 +196,10 @@ raw_data <- data_ped %>%
 
 fid_plot <- ggplot() +
     # create base contour plots
-    # geom_contour_filled(
-    #     data = advancing,
-    #     aes(x = distance_x, y = distance_z, z = surv_prob),
-    #     binwidth = 0.1) +
+    geom_contour_filled(
+        data = advancing,
+        aes(x = distance_x, y = distance_z, z = surv_prob),
+        binwidth = 0.1) +
     # define colours for flight probability contours
     scale_fill_brewer(
         type = "div",
@@ -217,11 +220,11 @@ fid_plot <- ggplot() +
     # define colours for 50% flight prob
     scale_linetype_manual(values = c("solid", "dashed", "dashed")) +
     # add raw flight or no flight endpoints for sub-2kg drones
-    geom_point(
-        data = raw_data,
-        aes(x = distance_x, y = distance_z,
-        colour = factor(ped_status)),
-        size = 10) +
+    # geom_point(
+    #     data = raw_data,
+    #     aes(x = distance_x, y = distance_z,
+    #     colour = factor(ped_status)),
+    #     size = 10) +
     # define colours for raw data
     scale_color_manual(values = c("red", "blue")) +
     # facet wrap by common name
@@ -276,3 +279,8 @@ fid_plot <- ggplot() +
                 title.hjust = 0.5))
 # save plot
 ggsave("plots/m2p_flight_initiation_distance.png", fid_plot, height = 40, width = 40, limitsize = FALSE)
+
+check <- advancing %>%
+    filter(
+        species == "pied stilt",
+        altitude == 0)

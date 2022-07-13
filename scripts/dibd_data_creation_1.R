@@ -42,14 +42,29 @@ data <- read_csv("data/dibd_data.csv")
 # prepare data in ped format
 prepare_data <- function(df) {
     data_ped <- df %>%
+        # filter out everything but pied stilt and eastern curlew
+        filter(
+            # species == "bar tailed godwit" |
+            species == "whimbrel" |
+            # species == "gull billed tern" |
+            # species == "great knot" |
+            # species == "caspian tern" |
+            species == "pied stilt" |
+            # species == "pied oystercatcher" |
+            # species == "black swan" |
+            species == "eastern curlew") %>%
+        # combine species and sentinel
+        mutate(species = case_when(
+            sentinel == "a" ~ species,
+            sentinel == "eastern curlew" ~ paste(species, sentinel))) %>%
         # add normalised count
         group_by(species) %>%
         mutate(normalised_count = count / max(count)) %>%
         ungroup() %>%
-        # degrade data but keep first flight
+        # degrade data but keep flight
         mutate(keep = case_when(
             response == 1 ~ 1,
-            time_since_launch %% 5 == 0 ~ 1,
+            time_since_launch %% 10 == 0 ~ 1,
             TRUE ~ 0)) %>%
         group_by(time_since_launch) %>%
         mutate(keep = case_when(max(keep) == 1 ~ 1, TRUE ~ 0)) %>%
@@ -60,6 +75,7 @@ prepare_data <- function(df) {
         # create ped parameters
         group_by(flight, species) %>%
         mutate(
+            sentinel = lead(sentinel),
             ped_status = lead(response),
             tstart = time_since_launch,
             tend = lead(time_since_launch),
@@ -78,3 +94,9 @@ write.csv(
     data_ped,
     "data/dibd_ped_data.csv",
     row.names = FALSE)
+
+check <- data_ped %>%
+    filter(
+        species == "pied stilt",
+        sentinel != "a") %>%
+    select(time_since_launch, sentinel, ped_status, flight, test, approach, distance_x, distance_z)

@@ -42,7 +42,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 #### Analysis of fit ####
 #########################
 # load model and print outputs
-fit <- readRDS("models/dibd-model-12-07-22_08-57.rds")
+fit <- readRDS("models/dibd-model-13-07-22_15-38.rds")
 summary(fit)
 
 # create dataframes investigating fit of each model parameter individually
@@ -58,7 +58,7 @@ new_data <- function(variable) {
         mutate(new_col1 = !!sym(variable)) %>%
     {
         # if altitude then interaction with species
-        if (variable == "distance_z") {
+        if (variable == "distance_z" | variable == "normalised_count") {
             # create dataset with specified variable varying
             make_newdata(
                 .,
@@ -102,19 +102,21 @@ variables <- c(
     "specification",
     "distance_x",
     "distance_z",
-    "velocity_x",
-    "velocity_y",
-    "velocity_z",
-    "acceleration",
+    # "velocity_x",
+    # "velocity_y",
+    # "velocity_z",
+    # "acceleration",
     "tend",
     "obscuring",
-    "wind_speed",
-    "cloud_cover",
-    "high_tide",
-    "temperature",
-    "location",
+    # "wind_speed",
+    # "cloud_cover",
+    # "high_tide",
+    # "temperature",
+    # "location",
+    "species",
+    "sentinel",
     "normalised_count",
-    "flock",
+    # "flock",
     "flight")
 
 invisible(mapply(new_data, variables))
@@ -128,7 +130,7 @@ plot_fit <- function(variable, target) {
     width <- 10
     title <- paste0("plots/", variable, ".png")
     # if distance, then interaction with species
-    if (variable == "distance_z") {
+    if (variable == "distance_z" | variable == "normalised_count") {
         plot <- (
             ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
             geom_line() +
