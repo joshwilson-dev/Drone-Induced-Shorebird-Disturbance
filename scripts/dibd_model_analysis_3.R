@@ -34,15 +34,19 @@ lapply(packages, require, character.only = TRUE)
 
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
+    # specify factors
     mutate(
+        flight = as.factor(flight),
         flock = as.factor(flock),
-        flight = as.factor(flight))
+        species = as.factor(species))
 
 #########################
 #### Analysis of fit ####
 #########################
 # load model and print outputs
-fit <- readRDS("models/dibd-model-13-07-22_15-38.rds")
+# fit <- readRDS("models/model.rds")
+fit <- readRDS("models/dibd-model-16-07-22_16-59.rds")
+
 summary(fit)
 
 # create dataframes investigating fit of each model parameter individually
@@ -102,19 +106,18 @@ variables <- c(
     "specification",
     "distance_x",
     "distance_z",
-    # "velocity_x",
-    # "velocity_y",
-    # "velocity_z",
-    # "acceleration",
+    "velocity_x",
+    "velocity_y",
+    "velocity_z",
+    "acceleration",
     "tend",
     "obscuring",
-    # "wind_speed",
-    # "cloud_cover",
-    # "high_tide",
-    # "temperature",
-    # "location",
+    "wind_speed",
+    "cloud_cover",
+    "high_tide",
+    "temperature",
+    "location",
     "species",
-    "sentinel",
     "normalised_count",
     # "flock",
     "flight")
@@ -217,3 +220,14 @@ plot_fit <- function(variable, target) {
 
 # running plot_fit function for each explanitory variable
 mapply(plot_fit, variables)
+
+ggplot() +
+scale_color_manual(values = c("green", "red")) +
+geom_point(data = filter(data_ped, ped_status == 0), aes(x = distance_x, y = distance_z), colour = "green") +
+geom_point(data = filter(data_ped, ped_status == 1), aes(x = distance_x, y = distance_z), colour = "red") +
+facet_wrap("species")
+
+check <- data_ped %>%
+    filter(species == "gull billed tern") %>%
+    filter(ped_status == 1) %>%
+    select(ped_status, species, time_since_launch,flight, test, approach, distance_x, distance_z, sentinel)

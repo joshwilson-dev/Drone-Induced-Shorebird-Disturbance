@@ -34,13 +34,12 @@ lapply(packages, require, character.only = TRUE)
 
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
-    mutate(species = paste0(species, sentinel)) %>%
     # specify factors
     mutate(
         flight = as.factor(flight),
         flock = as.factor(flock),
         species = as.factor(species))
-unique(data_ped$species)
+
 ##############################
 #### Train and Save Model ####
 ##############################
@@ -53,24 +52,23 @@ system.time({
         specification +
         s(distance_x, k = 3) +
         s(distance_z, by = species, k = 3) +
-        # s(velocity_x, k = 3) +
-        # s(velocity_y, k = 3) +
-        # s(velocity_z, k = 3) +
-        # s(acceleration, k = 3) +
+        s(velocity_x, k = 3) +
+        s(velocity_y, k = 3) +
+        s(velocity_z, k = 3) +
+        s(acceleration, k = 3) +
         # environment
         s(tend, k = 5) +
-        # obscuring +
-        # s(wind_speed, k = 3) +
-        # s(cloud_cover, k = 3) +
-        # s(high_tide, k = 5) +
-        # s(temperature, k = 3) +
-        # location +
+        obscuring +
+        s(wind_speed, k = 3) +
+        s(cloud_cover, k = 3) +
+        s(high_tide, k = 5) +
+        s(temperature, k = 3) +
+        location +
         # target
-        sentinel +
         species +
         s(normalised_count, by = species, k = 3) +
+        s(flock, bs = "re") +
         s(flight, bs = "re"),
-        # s(flock, bs = "re"),
         data = data_ped,
         family = poisson(),
         method = "REML",
@@ -79,6 +77,6 @@ system.time({
 })
 
 # save model
-# save_prefix <- "models/dibd-model-"
-saveRDS(fit, "models/model.rds")
-# saveRDS(fit, paste0(save_prefix, format(Sys.time(), "%d-%m-%y_%H-%M"), ".rds"))
+save_prefix <- "models/dibd-model-"
+# saveRDS(fit, "models/model.rds")
+saveRDS(fit, paste0(save_prefix, format(Sys.time(), "%d-%m-%y_%H-%M"), ".rds"))

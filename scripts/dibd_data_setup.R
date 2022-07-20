@@ -397,6 +397,7 @@ data_long <- data %>%
     # pivot long so that each species is on a different row
     pivot_longer(
         cols =
+        ends_with("sentinel") |
         ends_with("behaviour") |
         ends_with("count") |
         ends_with("lat") |
@@ -519,6 +520,7 @@ data_long <- data %>%
         approach,
         time_since_launch,
         # target
+        sentinel,
         common_name,
         behaviour,
         count,
@@ -640,8 +642,8 @@ data_final <- data_complete %>%
     # select only some species
     filter(
         common_name == "eastern curlew" |
-        common_name == "bar tailed godwit" |
         common_name == "whimbrel" |
+        common_name == "bar tailed godwit" |
         common_name == "gull billed tern" |
         common_name == "great knot" |
         common_name == "caspian tern" |
@@ -650,8 +652,9 @@ data_final <- data_complete %>%
         common_name == "black swan") %>%
     # remove flights where sentinel impacted results unless it was eastern curlew
     group_by(flight, common_name) %>%
+    mutate(sentinel = case_when(is.na(sentinel) ~ "a", T ~ sentinel)) %>%
     mutate(sentinel_check = case_when(
-        sentinel_flight == "a" | sentinel_flight == "eastern curlew" ~ 0,
+        sentinel_flight == "a" | sentinel == "eastern curlew" ~ 0,
         TRUE ~ 1)) %>%
     filter(max(sentinel_check) == 0) %>%
     # approach ends if birds take flight
@@ -659,7 +662,6 @@ data_final <- data_complete %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
     ungroup() %>%
     mutate(
-        sentinel = sentinel_flight,
         species = common_name,
         count = count,
         latitude = lat,
@@ -744,8 +746,6 @@ data_final <- data_complete %>%
         obscuring,
         background_noise,
         light)
-
-unique(data_final$sentinel)
 
 ##################
 #### Save CSV ####

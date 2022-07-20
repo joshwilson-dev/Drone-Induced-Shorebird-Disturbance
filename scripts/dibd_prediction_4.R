@@ -38,15 +38,29 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     mutate(
         flight = as.factor(flight),
         flock = as.factor(flock),
-        species = as.factor(species))
+        species = factor(
+            species,
+            ordered = TRUE,
+            levels = c(
+                "eastern curlew",
+                "eastern curlew sentinel",
+                "bar tailed godwit",
+                "whimbrel",
+                "gull billed tern",
+                "great knot",
+                "caspian tern",
+                "pied stilt",
+                "pied oystercatcher",
+                "black swan")))
+        # species = as.factor(species))
 
 ###########################################################################
 #### Survival Probability and Flight Initiation Distance Visualisation ####
 ###########################################################################
 
 # load model
-fit <- readRDS("models/model.rds")
-
+# fit <- readRDS("models/model.rds")
+fit <- readRDS("models/dibd-model-20-07-22_03-09.rds")
 summary(fit)
 # determine the mean, or mode for all numerical or categorical variables
 ref <- data_ped %>%
@@ -140,7 +154,7 @@ flight_log <- survival_data %>%
         names_to = "legend",
         values_to = "line") %>%
     mutate(legend = case_when(
-        legend == "surv_prob" ~ "Probability of Birds Not Taking Flight",
+        legend == "surv_prob" ~ "Probability of Birds Taking Flight",
         legend == "distance_x" ~ "Normalised Distance [0:500m]",
         legend == "distance_z" ~ "Normalised Altitude [0:120m]"))
 
@@ -150,7 +164,7 @@ surv_plot <- ggplot() +
         aes(y = line, x = tend, linetype = legend),
         size = 1) +
     geom_ribbon(
-        data = filter(flight_log, legend == "Probability of Birds Not Taking Flight"),
+        data = filter(flight_log, legend == "Probability of Birds Taking Flight"),
         aes(x = tend, ymin = surv_lower, ymax = surv_upper),
         alpha = 0.3) +
     scale_linetype_manual(values = c("dotted", "longdash", "solid")) +
@@ -172,7 +186,8 @@ ggsave("plots/eastern_curlew_flight_probability.png", surv_plot, height = 10, wi
 # creating contour plot of flight probability for each species
 advancing <- survival_data %>%
     mutate(distance_z = round(distance_z)) %>%
-    filter(distance_z == altitude)
+    filter(distance_z == altitude) %>%
+    filter(species != "eastern curlew sentinel")
 
 # Creating line at 50% flight probability with corresponding CI
 ribbon <- advancing  %>%
@@ -186,13 +201,18 @@ ribbon <- advancing  %>%
         `Confidence Intervals` == "surv_lower" ~ "95% Lower Confidence Interval"))
 
 raw_data <- data_ped %>%
-    # filter(
-    #     specification != "inspire 2") %>%
+    filter(species != "eastern curlew sentinel") %>%
     mutate(ped_status = case_when(
-        ped_status == 1 ~ "Flight",
-        ped_status == 0 ~ "No Flight")) %>%
-    arrange(desc(ped_status)) %>%
-    filter(ped_status == "Flight" | time_since_launch %% 5 == 0)
+        ped_status == 1 ~ "Birds Took Flight",
+        # ped_status == 1 & specification != "inspire 2" ~ "Birds Took Flight - 300mm Quadcopter",
+        # ped_status == 1 & specification == "inspire 2" ~ "Birds Took Flight - 600mm Quadcopter",
+        ped_status == 0 ~ "Birds Did Not Take Flight")) %>%
+    arrange(ped_status) %>%
+    filter(
+        ped_status == "Birds Took Flight" |
+        # ped_status == "Birds Took Flight - 300mm Quadcopter" |
+        # ped_status == "Birds Took Flight - 600mm Quadcopter" |
+        time_since_launch %% 5 == 0)
 
 fid_plot <- ggplot() +
     # create base contour plots
@@ -207,16 +227,16 @@ fid_plot <- ggplot() +
         direction = -1,
         aesthetics = "fill") +
     # add line and ribbons at 50% flight probability
-    geom_contour(
-        data = ribbon,
-        aes(
-            x = distance_x,
-            y = distance_z,
-            z = fit,
-            linetype = `Confidence Intervals`),
-        colour = "black",
-        binwidth = 0.5,
-        size = 4) +
+    # geom_contour(
+    #     data = ribbon,
+    #     aes(
+    #         x = distance_x,
+    #         y = distance_z,
+    #         z = fit,
+    #         linetype = `Confidence Intervals`),
+    #     colour = "black",
+    #     binwidth = 0.5,
+    #     size = 4) +
     # define colours for 50% flight prob
     scale_linetype_manual(values = c("solid", "dashed", "dashed")) +
     # add raw flight or no flight endpoints for sub-2kg drones
@@ -226,7 +246,7 @@ fid_plot <- ggplot() +
     #     colour = factor(ped_status)),
     #     size = 10) +
     # define colours for raw data
-    scale_color_manual(values = c("red", "blue")) +
+    scale_color_manual(values = c("blue", "red", "darkorange")) +
     # facet wrap by common name
     facet_wrap("species") +
     # make plot aesthetic
@@ -237,12 +257,12 @@ fid_plot <- ggplot() +
     ylab("Altitude [m]") +
     labs(fill = "Predicted Flight Probability") +
     labs(colour = "Raw Data") +
-    ggtitle("Drone Induced Bird Flight - Data") +
+    ggtitle("Drone Induced Shorebird Flight Probability") +
     # ggtitle("Inspire 2 Induced Bird Flight") +
     theme(
         plot.title = element_text(hjust = 0.5, size = 80),
         panel.spacing = unit(5, "lines"),
-        strip.text = element_text(size = 60, face = "bold"),
+        strip.text = element_text(size = 50, face = "bold"),
         plot.margin = margin(1, 1, 1, 1, "in"),
         axis.ticks = element_line(size = 2),
         axis.ticks.length = unit(.15, "in"),
@@ -279,8 +299,3 @@ fid_plot <- ggplot() +
                 title.hjust = 0.5))
 # save plot
 ggsave("plots/m2p_flight_initiation_distance.png", fid_plot, height = 40, width = 40, limitsize = FALSE)
-
-check <- advancing %>%
-    filter(
-        species == "pied stilt",
-        altitude == 0)
