@@ -34,18 +34,32 @@ lapply(packages, require, character.only = TRUE)
 
 # import data
 data_ped <- read_csv("data/dibd_ped_data.csv") %>%
+    filter(species != "eastern curlew sentinel") %>%
     # specify factors
     mutate(
         flight = as.factor(flight),
         flock = as.factor(flock),
-        species = as.factor(species))
+        species = factor(
+            species,
+            ordered = TRUE,
+            levels = c(
+                "eastern curlew",
+                # "eastern curlew sentinel",
+                "bar tailed godwit",
+                "whimbrel",
+                "gull billed tern",
+                "great knot",
+                "caspian tern",
+                "pied stilt",
+                "pied oystercatcher",
+                "black swan")))
 
 #########################
 #### Analysis of fit ####
 #########################
 # load model and print outputs
 # fit <- readRDS("models/model.rds")
-fit <- readRDS("models/dibd-model-16-07-22_16-59.rds")
+fit <- readRDS("models/dibd-model-20-07-22_03-09.rds")
 
 summary(fit)
 
@@ -119,7 +133,7 @@ variables <- c(
     "location",
     "species",
     "normalised_count",
-    # "flock",
+    "flock",
     "flight")
 
 invisible(mapply(new_data, variables))
@@ -137,7 +151,7 @@ plot_fit <- function(variable, target) {
         plot <- (
             ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
             geom_line() +
-            coord_cartesian(ylim = c(-10, 10)) +
+            coord_cartesian(ylim = c(-20, 20)) +
             geom_ribbon(
                 aes(ymin = ci_lower, ymax = ci_upper),
                 alpha = 0.2) +
@@ -151,7 +165,7 @@ plot_fit <- function(variable, target) {
         plot <- (
             ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
             geom_line() +
-            coord_cartesian(ylim = c(-10, 10)) +
+            coord_cartesian(ylim = c(-20, 20)) +
             geom_ribbon(
                 aes(ymin = ci_lower, ymax = ci_upper),
                 alpha = 0.2) +
@@ -161,7 +175,7 @@ plot_fit <- function(variable, target) {
     else {
         plot <- (
             ggplot(data = dataframe, aes(.data[[variable]], y = fit)) +
-            coord_cartesian(ylim = c(-10, 10)) +
+            coord_cartesian(ylim = c(-20, 20)) +
             geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper)) +
             ylab("Effect"))
     }

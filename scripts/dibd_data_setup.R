@@ -430,12 +430,6 @@ data_long <- data %>%
             (lat - drone_latitude_d))^2 +
             ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
             (long - drone_longitude_d))) ^ 2)),
-        # add in distance between eastern curlew and birds
-        # distance_eastern_curlew = (
-        #     6371009 * sqrt(((pi / 180) *
-        #     (lat - drone_latitude_d))^2 +
-        #     ((cos((pi / 180) * (lat + drone_latitude_d) / 2) * (pi / 180) *
-        #     (long - drone_longitude_d))) ^ 2)),
         xyz_disp_m = (xy_disp_m**2 + z_disp_m**2)**0.5,
         # round latitude and longitude for location
         lat_rnd = round(lat, 2),
@@ -612,11 +606,6 @@ data_complete <- merge(data_wide_count, data_long) %>%
         sentinel_flight = case_when(
             lag(sentinel_flight, 50, default = "a") == "a" ~ sentinel_flight,
             TRUE ~ "a")) %>%
-    # sometimes not all sentinel birds took flight
-    # mutate(sentinel_flight = case_when(
-    #     sentinel_flight_proportion == "scattered" &
-    #     sentinel_flight != "a" ~ paste0(sentinel_flight, "_partial"),
-    #     TRUE ~ sentinel_flight)) %>%
     # add sentinel count
     group_by(flight, time_since_launch) %>%
     mutate(
@@ -650,13 +639,23 @@ data_final <- data_complete %>%
         common_name == "pied stilt" |
         common_name == "pied oystercatcher" |
         common_name == "black swan") %>%
-    # remove flights where sentinel impacted results unless it was eastern curlew
+    # remove flights where sentinel impacted results except eastern curlew
     group_by(flight, common_name) %>%
     mutate(sentinel = case_when(is.na(sentinel) ~ "a", T ~ sentinel)) %>%
     mutate(sentinel_check = case_when(
         sentinel_flight == "a" | sentinel == "eastern curlew" ~ 0,
         TRUE ~ 1)) %>%
     filter(max(sentinel_check) == 0) %>%
+    # change species if eastern curlew took flight
+    mutate(sentinel_check = case_when(
+        sentinel == "eastern curlew" ~ 1,
+        TRUE ~ 0
+    )) %>%
+    group_by(flight, common_name) %>%
+    mutate(common_name = case_when(
+        max(sentinel_check) == 1 ~ paste(common_name, "with curlew"),
+        TRUE ~ common_name
+    )) %>%
     # approach ends if birds take flight
     group_by(flight, common_name, behaviour) %>%
     filter(behaviour == 0 | row_number() <= 1) %>%
@@ -715,10 +714,10 @@ data_final <- data_complete %>%
         response,
         species,
         flock,
+        sentinel,
         count,
         life_stage,
         activity,
-        sentinel,
         age,
         contains("count_"),
         type,
@@ -761,3 +760,26 @@ scale_color_manual(values = c("green", "red")) +
 geom_point(data = filter(data_final, response == 0), aes(x = distance_x, y = distance_z), colour = "green") +
 geom_point(data = filter(data_final, response == 1), aes(x = distance_x, y = distance_z), colour = "red") +
 facet_wrap("species")
+
+
+# % of flights where eastern curlew took flight and other species didn't
+check <- data_final %>%
+    filter(
+        species != "eastern curlew" &
+        species != "whimbrel" &
+        species != "bar tailed godwit" &
+        species != "gull billed tern" &
+        species != "great knot" &
+        species != "caspian tern" &
+        species != "pied stilt" &
+        species != "pied oystercatcher" &
+        species != "black swan") %>%
+    group_by(flight, species) %>%
+    filter(response == max(response)) %>%
+    slice(1) %>%
+    group_by(species) %>%
+    select(flight, species, test, approach, response, time_since_launch) %>%
+    count(species, response, sort = TRUE) %>%
+    mutate(response = case_when(response == 1 ~ "Flight", TRUE ~ "No Flight")) %>%
+    pivot_wider(names_from = response, values_from = n) %>%
+    mutate(Flight_Percentage = (100 * Flight) / (Flight + `No Flight`))

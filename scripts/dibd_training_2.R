@@ -57,16 +57,16 @@ system.time({
         s(velocity_z, k = 3) +
         s(acceleration, k = 3) +
         # environment
-        s(tend, k = 5) +
+        s(tend, k = 3) +
         obscuring +
         s(wind_speed, k = 3) +
         s(cloud_cover, k = 3) +
-        s(high_tide, k = 5) +
+        s(high_tide, k = 3) +
         s(temperature, k = 3) +
         location +
         # target
         species +
-        s(normalised_count, by = species, k = 3) +
+        s(count, k = 3) +
         s(flock, bs = "re") +
         s(flight, bs = "re"),
         data = data_ped,

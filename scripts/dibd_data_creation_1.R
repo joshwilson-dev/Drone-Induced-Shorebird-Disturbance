@@ -42,10 +42,6 @@ data <- read_csv("data/dibd_data.csv")
 # prepare data in ped format
 prepare_data <- function(df) {
     data_ped <- df %>%
-        # add normalised count
-        group_by(species) %>%
-        mutate(normalised_count = count / max(count)) %>%
-        ungroup() %>%
         # degrade data but keep flight
         mutate(keep = case_when(
             response == 1 ~ 1,
@@ -60,7 +56,6 @@ prepare_data <- function(df) {
         # create ped parameters
         group_by(flight, species) %>%
         mutate(
-            sentinel = lead(sentinel),
             ped_status = lead(response),
             tstart = time_since_launch,
             tend = lead(time_since_launch),
@@ -68,10 +63,11 @@ prepare_data <- function(df) {
             offset = log(interval)) %>%
         drop_na(ped_status) %>%
         ungroup() %>%
-        # combine species and sentinel
+        # group data when eastern curlew took flight
         mutate(species = case_when(
-            sentinel == "a" ~ species,
-            sentinel == "eastern curlew" ~ paste(sentinel, "sentinel"))) %>%
+            grepl("with curlew", species) ~ "eastern curlew sentinel",
+            TRUE ~ species)) %>%
+        filter(species != "eastern curlew sentinel") %>%
         droplevels()
     return(data_ped)
 }
