@@ -50,24 +50,24 @@ system.time({
         ped_status ~
         # stimulus
         specification +
-        s(distance_x, k = 3) +
-        s(distance_z, by = species, k = 3) +
-        s(velocity_x, k = 3) +
-        s(velocity_y, k = 3) +
-        s(velocity_z, k = 3) +
-        s(acceleration, k = 3) +
+        s(distance_x, by = species, k = 5) +
+        s(distance_z, by = species, k = 5) +
+        s(velocity_x, k = 5) +
+        # s(velocity_y, k = 3) +
+        s(velocity_z, k = 5) +
+        # s(acceleration, k = 3) +
         # environment
-        s(tend, k = 3) +
+        s(tend, k = 5) +
         obscuring +
-        s(wind_speed, k = 3) +
-        s(cloud_cover, k = 3) +
-        s(high_tide, k = 3) +
-        s(temperature, k = 3) +
+        s(wind_speed, k = 5) +
+        s(cloud_cover, k = 5) +
+        s(high_tide, k = 5) +
+        s(temperature, k = 5) +
         location +
         # target
         species +
-        s(count, k = 3) +
-        s(flock, bs = "re") +
+        s(count, k = 5) +
+        # s(flock, bs = "re") +
         s(flight, bs = "re"),
         data = data_ped,
         family = poisson(),

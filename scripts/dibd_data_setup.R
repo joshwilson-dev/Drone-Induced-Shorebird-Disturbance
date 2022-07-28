@@ -754,32 +754,3 @@ write.csv(
     data_final,
     "data/dibd_data.csv",
     row.names = FALSE)
-
-ggplot() +
-scale_color_manual(values = c("green", "red")) +
-geom_point(data = filter(data_final, response == 0), aes(x = distance_x, y = distance_z), colour = "green") +
-geom_point(data = filter(data_final, response == 1), aes(x = distance_x, y = distance_z), colour = "red") +
-facet_wrap("species")
-
-
-# % of flights where eastern curlew took flight and other species didn't
-check <- data_final %>%
-    filter(
-        species != "eastern curlew" &
-        species != "whimbrel" &
-        species != "bar tailed godwit" &
-        species != "gull billed tern" &
-        species != "great knot" &
-        species != "caspian tern" &
-        species != "pied stilt" &
-        species != "pied oystercatcher" &
-        species != "black swan") %>%
-    group_by(flight, species) %>%
-    filter(response == max(response)) %>%
-    slice(1) %>%
-    group_by(species) %>%
-    select(flight, species, test, approach, response, time_since_launch) %>%
-    count(species, response, sort = TRUE) %>%
-    mutate(response = case_when(response == 1 ~ "Flight", TRUE ~ "No Flight")) %>%
-    pivot_wider(names_from = response, values_from = n) %>%
-    mutate(Flight_Percentage = (100 * Flight) / (Flight + `No Flight`))

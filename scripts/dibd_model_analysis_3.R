@@ -59,7 +59,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 #########################
 # load model and print outputs
 # fit <- readRDS("models/model.rds")
-fit <- readRDS("models/dibd-model-20-07-22_03-09.rds")
+fit <- readRDS("models/dibd-model-25-07-22_16-28.rds")
 
 summary(fit)
 
@@ -121,9 +121,9 @@ variables <- c(
     "distance_x",
     "distance_z",
     "velocity_x",
-    "velocity_y",
+    # "velocity_y",
     "velocity_z",
-    "acceleration",
+    # "acceleration",
     "tend",
     "obscuring",
     "wind_speed",
@@ -132,7 +132,7 @@ variables <- c(
     "temperature",
     "location",
     "species",
-    "normalised_count",
+    "count",
     "flock",
     "flight")
 

@@ -43,7 +43,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
             ordered = TRUE,
             levels = c(
                 "eastern curlew",
-                "eastern curlew sentinel",
+                # "eastern curlew sentinel",
                 "bar tailed godwit",
                 "whimbrel",
                 "gull billed tern",
@@ -60,7 +60,7 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
 
 # load model
 # fit <- readRDS("models/model.rds")
-fit <- readRDS("models/dibd-model-20-07-22_03-09.rds")
+fit <- readRDS("models/dibd-model-26-07-22_09-36.rds")
 summary(fit)
 # determine the mean, or mode for all numerical or categorical variables
 ref <- data_ped %>%
@@ -112,7 +112,7 @@ log_simulator <- function(fit, altitude_list, species_list) {
                     location = ref$location,
                     specification = "mavic 2 pro",
                     obscuring = "not obscured",
-                    normalised_count = 0.5,
+                    count = 100,
                     # sentinel = "a",
                     altitude = altitude)
             # predicting survival probability
@@ -186,9 +186,9 @@ ggsave("plots/eastern_curlew_flight_probability.png", surv_plot, height = 10, wi
 # creating contour plot of flight probability for each species
 advancing <- survival_data %>%
     mutate(distance_z = round(distance_z)) %>%
-    filter(distance_z == altitude) %>%
+    filter(distance_z == altitude)
     # filter(species != "eastern curlew sentinel") %>%
-    filter(species == "eastern curlew sentinel")
+    # filter(species == "eastern curlew")
 
 # Creating line at 50% flight probability with corresponding CI
 ribbon <- advancing  %>%
@@ -203,8 +203,8 @@ ribbon <- advancing  %>%
 
 raw_data <- data_ped %>%
     # filter(species != "eastern curlew sentinel") %>%
-    # filter(specification == "mavic 2 pro" | specification == "phantom 4 pro") %>%
-    filter(specification == "inspire 2 pro") %>%
+    filter(specification == "mavic 2 pro" | specification == "phantom 4 pro") %>%
+    # filter(specification == "inspire 2 pro") %>%
     mutate(ped_status = case_when(
         ped_status == 1 ~ "Flight",
         # ped_status == 1 & specification != "inspire 2" ~ "Birds Took Flight - 300mm Quadcopter",
@@ -215,7 +215,7 @@ raw_data <- data_ped %>%
         ped_status == "Flight" |
         # ped_status == "Birds Took Flight - 300mm Quadcopter" |
         # ped_status == "Birds Took Flight - 600mm Quadcopter" |
-        time_since_launch %% 20 == 0)
+        time_since_launch %% 10 == 0)
 
 fid_plot <- ggplot() +
     # create base contour plots
@@ -260,7 +260,7 @@ fid_plot <- ggplot() +
     ylab("Altitude [m]") +
     labs(fill = "Probability of Birds Having Taken Flight") +
     labs(colour = "Raw Data") +
-    ggtitle("350mm Quadcopter Induced Shorebird Flight Probability with Eastern Curlew") +
+    ggtitle("350mm Quadcopter Induced Shorebird Flight Probability") +
     # ggtitle("Inspire 2 Induced Bird Flight") +
     coord_fixed(ratio = 1) +
     theme(
@@ -304,3 +304,9 @@ fid_plot <- ggplot() +
                 title.hjust = 0.5))
 # save plot
 ggsave("plots/m2p_flight_initiation_distance.png", fid_plot, height = 40, width = 60, limitsize = FALSE)
+
+check <- data_ped %>%
+    filter(species == "eastern curlew") %>%
+    filter(ped_status == 1) %>%
+    group_by(flight) %>%
+    slice(1)
