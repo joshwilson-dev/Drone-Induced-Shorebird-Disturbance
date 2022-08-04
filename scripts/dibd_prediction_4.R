@@ -37,31 +37,16 @@ data_ped <- read_csv("data/dibd_ped_data.csv") %>%
     # specify factors
     mutate(
         flight = as.factor(flight),
-        flock = as.factor(flock),
-        species = factor(
-            species,
-            ordered = TRUE,
-            levels = c(
-                "eastern curlew",
-                # "eastern curlew sentinel",
-                "bar tailed godwit",
-                "whimbrel",
-                "gull billed tern",
-                "great knot",
-                "caspian tern",
-                "pied stilt",
-                "pied oystercatcher",
-                "black swan")))
-        # species = as.factor(species))
+        flock = as.factor(flock))
 
 ###########################################################################
 #### Survival Probability and Flight Initiation Distance Visualisation ####
 ###########################################################################
 
 # load model
-# fit <- readRDS("models/model.rds")
 fit <- readRDS("models/dibd-model-26-07-22_09-36.rds")
 summary(fit)
+
 # determine the mean, or mode for all numerical or categorical variables
 ref <- data_ped %>%
     ungroup() %>%
@@ -118,7 +103,7 @@ log_simulator <- function(fit, altitude_list, species_list) {
             # predicting survival probability
             prediction <- flight_log_new %>%
                 mutate(intlen = 1) %>%
-                add_surv_prob(fit, exclude = c("s(flight)", "s(flock)", "s(location)"))
+                add_surv_prob(fit, exclude = c("s(flight)", "s(location)"))
             # saving dataframe
             df_i <- bind_rows(df_i, prediction)
         }
@@ -164,7 +149,9 @@ surv_plot <- ggplot() +
         aes(y = line, x = tend, linetype = legend),
         size = 1) +
     geom_ribbon(
-        data = filter(flight_log, legend == "Probability of Birds Taking Flight"),
+        data = filter(
+            flight_log,
+            legend == "Probability of Birds Taking Flight"),
         aes(x = tend, ymin = surv_lower, ymax = surv_upper),
         alpha = 0.3) +
     scale_linetype_manual(values = c("dotted", "longdash", "solid")) +
@@ -181,14 +168,41 @@ surv_plot <- ggplot() +
         legend.text = element_text(size = 15)) +
     guides(linetype = guide_legend(nrow = 3))
 
-ggsave("plots/eastern_curlew_flight_probability.png", surv_plot, height = 10, width = 10)
+ggsave(
+    "plots/eastern_curlew_flight_probability.png",
+    surv_plot,
+    height = 10,
+    width = 10)
 
 # creating contour plot of flight probability for each species
 advancing <- survival_data %>%
     mutate(distance_z = round(distance_z)) %>%
-    filter(distance_z == altitude)
-    # filter(species != "eastern curlew sentinel") %>%
-    # filter(species == "eastern curlew")
+    filter(species != "eastern curlew") %>%
+    filter(distance_z == altitude) %>%
+    mutate(species = case_when(
+        species == "eastern curlew" ~ "Eastern Curlew",
+        species == "bar tailed godwit" ~ "Bar-tailed Godwit",
+        species == "whimbrel" ~ "Whimbrel",
+        species == "gull billed tern" ~ "Gull-billed Tern",
+        species == "great knot" ~ "Great Knot",
+        species == "caspian tern" ~ "Caspian Tern",
+        species == "pied stilt" ~ "Pied Stilt",
+        species == "pied oystercatcher" ~ "Pied Oystercatcher",
+        species == "black swan" ~ "Black Swan")) %>%
+    mutate(
+        species = factor(
+        species,
+        ordered = TRUE,
+        levels = c(
+            "Eastern Curlew",
+            "Bar-tailed Godwit",
+            "Whimbrel",
+            "Gull-billed Tern",
+            "Great Knot",
+            "Caspian Tern",
+            "Pied Stilt",
+            "Pied Oystercatcher",
+            "Black Swan")))
 
 # Creating line at 50% flight probability with corresponding CI
 ribbon <- advancing  %>%
@@ -199,23 +213,87 @@ ribbon <- advancing  %>%
     mutate(`Confidence Intervals` = case_when(
         `Confidence Intervals` == "surv_prob" ~ "50% Flight Probability",
         `Confidence Intervals` == "surv_upper" ~ "95% Confidence Interval",
-        `Confidence Intervals` == "surv_lower" ~ "95% Lower Confidence Interval"))
+        `Confidence Intervals` == "surv_lower" ~ "95% Confidence Interval"))
+
+data <- read_csv("data/dibd_data.csv")
+
+raw_data <- data %>%
+    filter(grepl("with curlew", species)) %>%
+    filter(response == 1) %>%
+    filter(
+        specification == "mavic 2 pro" |
+        specification == "phantom 4 pro") %>%
+    # filter(specification == "inspire 2 pro") %>%
+    mutate(response = case_when(
+        response == 1 ~ "Flight",
+        response == 0 ~ "No Flight")) %>%
+    arrange(desc(response)) %>%
+    filter(
+        time_since_launch %% 10 == 0 |
+        response == "Flight") %>%
+    mutate(species = case_when(
+        species == "eastern curlew" ~ "Eastern Curlew",
+        species == "bar tailed godwit" ~ "Bar-tailed Godwit",
+        species == "whimbrel" ~ "Whimbrel",
+        species == "gull billed tern" ~ "Gull-billed Tern",
+        species == "great knot" ~ "Great Knot",
+        species == "caspian tern" ~ "Caspian Tern",
+        species == "pied stilt" ~ "Pied Stilt",
+        species == "pied oystercatcher" ~ "Pied Oystercatcher",
+        species == "black swan" ~ "Black Swan",
+        TRUE ~ species))
+
+raw_data$species <- gsub(" with curlew", "", raw_data$species)
 
 raw_data <- data_ped %>%
-    # filter(species != "eastern curlew sentinel") %>%
-    filter(specification == "mavic 2 pro" | specification == "phantom 4 pro") %>%
-    # filter(specification == "inspire 2 pro") %>%
+    filter(
+        specification == "mavic 2 pro" |
+        specification == "phantom 4 pro") %>%
     mutate(ped_status = case_when(
         ped_status == 1 ~ "Flight",
-        # ped_status == 1 & specification != "inspire 2" ~ "Birds Took Flight - 300mm Quadcopter",
-        # ped_status == 1 & specification == "inspire 2" ~ "Birds Took Flight - 600mm Quadcopter",
         ped_status == 0 ~ "No Flight")) %>%
     arrange(desc(ped_status)) %>%
     filter(
-        ped_status == "Flight" |
-        # ped_status == "Birds Took Flight - 300mm Quadcopter" |
-        # ped_status == "Birds Took Flight - 600mm Quadcopter" |
-        time_since_launch %% 10 == 0)
+        time_since_launch %% 10 == 0 |
+        ped_status == "Flight") %>%
+    mutate(species = case_when(
+        species == "eastern curlew" ~ "Eastern Curlew",
+        species == "bar tailed godwit" ~ "Bar-tailed Godwit",
+        species == "whimbrel" ~ "Whimbrel",
+        species == "gull billed tern" ~ "Gull-billed Tern",
+        species == "great knot" ~ "Great Knot",
+        species == "caspian tern" ~ "Caspian Tern",
+        species == "pied stilt" ~ "Pied Stilt",
+        species == "pied oystercatcher" ~ "Pied Oystercatcher",
+        species == "black swan" ~ "Black Swan"))
+
+raw_data <- raw_data %>%
+    filter(species != "eastern curlew") %>%
+    mutate(species = case_when(
+        species == "eastern curlew" ~ "Eastern Curlew",
+        species == "bar tailed godwit" ~ "Bar-tailed Godwit",
+        species == "whimbrel" ~ "Whimbrel",
+        species == "gull billed tern" ~ "Gull-billed Tern",
+        species == "great knot" ~ "Great Knot",
+        species == "caspian tern" ~ "Caspian Tern",
+        species == "pied stilt" ~ "Pied Stilt",
+        species == "pied oystercatcher" ~ "Pied Oystercatcher",
+        species == "black swan" ~ "Black Swan",
+        TRUE ~ species)) %>%
+    mutate(
+        species = factor(
+            species,
+            ordered = TRUE,
+            levels = c(
+                "Eastern Curlew",
+                "Bar-tailed Godwit",
+                "Whimbrel",
+                "Gull-billed Tern",
+                "Great Knot",
+                "Caspian Tern",
+                "Pied Stilt",
+                "Pied Oystercatcher",
+                "Black Swan")))
 
 fid_plot <- ggplot() +
     # create base contour plots
@@ -246,22 +324,23 @@ fid_plot <- ggplot() +
     geom_point(
         data = raw_data,
         aes(x = distance_x, y = distance_z,
-        colour = factor(ped_status)),
-        size = 8) +
+        colour = factor(response)),
+        size = 10) +
     # define colours for raw data
-    scale_color_manual(values = c("red", "blue", "darkorange")) +
+    scale_color_manual(values = c("red", "blue")) +
     # facet wrap by common name
-    facet_wrap("species") +
+    facet_wrap("species", nrow = 4) +
     # make plot aesthetic
     theme_bw() +
-    scale_x_continuous(limits = c(0, 500), expand = c(0, 0)) +
+    scale_x_continuous(limits = c(0, 450), expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
     xlab("Horizontal Distance [m]") +
     ylab("Altitude [m]") +
-    labs(fill = "Probability of Birds Having Taken Flight") +
-    labs(colour = "Raw Data") +
-    ggtitle("350mm Quadcopter Induced Shorebird Flight Probability") +
-    # ggtitle("Inspire 2 Induced Bird Flight") +
+    labs(fill = "Probability of Birds Having Taken Flight\n In Single Species Flock, Figure 3") +
+    labs(colour = "Eastern Curlew Induced Flight Points") +
+    # ggtitle("350mm Quadcopter Induced Bird Flight Probability") +
+    # ggtitle("350mm Quadcopter Induced Waterbird Flight Probability\n When in a Mixed Species Flock Containing Eastern Curlew") +
+    ggtitle("Inspire 2 Induced Bird Flight Probability") +
     coord_fixed(ratio = 1) +
     theme(
         plot.title = element_text(hjust = 0.5, size = 80),
@@ -303,10 +382,34 @@ fid_plot <- ggplot() +
                 title.position = "top",
                 title.hjust = 0.5))
 # save plot
-ggsave("plots/m2p_flight_initiation_distance.png", fid_plot, height = 40, width = 60, limitsize = FALSE)
+ggsave("plots/eci_flight_initiation_distance.png", fid_plot, height = 40, width = 60, limitsize = FALSE)
 
-check <- data_ped %>%
+
+check <- data %>%
     filter(species == "eastern curlew") %>%
-    filter(ped_status == 1) %>%
     group_by(flight) %>%
     slice(1)
+
+# % of flights where eastern curlew took flight and other species didn't
+check <- data %>%
+    filter(
+        species != "eastern curlew" &
+        species != "whimbrel" &
+        species != "bar tailed godwit" &
+        species != "gull billed tern" &
+        species != "great knot" &
+        species != "caspian tern" &
+        species != "pied stilt" &
+        species != "pied oystercatcher" &
+        species != "black swan") %>%
+    group_by(flight, species) %>%
+    filter(response == max(response)) %>%
+    slice(1) %>%
+    group_by(species) %>%
+    select(flight, species, test, approach, response, time_since_launch) %>%
+    count(species, response, sort = TRUE) %>%
+    mutate(response = case_when(
+        response == 1 ~ "Flight",
+        TRUE ~ "No Flight")) %>%
+    pivot_wider(names_from = response, values_from = n) %>%
+    mutate(Flight_Percentage = (100 * Flight) / (Flight + `No Flight`))
