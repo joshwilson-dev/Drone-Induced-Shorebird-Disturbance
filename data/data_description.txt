@@ -1,0 +1,29 @@
+flight:                 Each drone launch is a new flight
+time_since_launch:      Time since the drone was launched    [s]
+response:               Binary flight/no-flight 1/0
+species:                Common name of target species
+count:                  Abundance of target species
+life_stage:             Breeding/non-breeding
+activity:               Roosting/foraging
+age:                    Chick/Juvenile/Adult
+latitude:               Latitude of birds
+longitude:              Longitude of birds
+contains("count_")
+contains("response_")
+stimulus
+distance_xy
+distance_z
+velocity_x
+velocity_y
+velocity_z
+acceleration
+obscured
+location
+datetime_aest
+temperature
+wind_speed
+wind_direction
+cloud_cover
+hightide
+background_noise
+background_light
