@@ -88,40 +88,41 @@ saveRDS(fit, "models/model.rds")
 
 # analyse model
 summary(fit)
-# get mean or mode of variables
+
+# get inverse link
+ilink <- family(fit)$linkinv
+
+# get mean or mode for each variable
 ref_data <- data %>%
     ungroup() %>%
     sample_info()
-# get inverse link
-ilink <- family(fit)$linkinv
+
 # get terms
+data <- data %>%
+    filter(flight != 249) %>%
+    droplevels()
+
 terms <- attributes(fit$terms)$term.labels
 
 # create plots
 for (term in terms) {
     print(term)
+    ref <- ref_data
     # check if term is continuous or categorical
     # and get sequence from min to max, or all unique categories
-    if (term == "altitude") {
-        altitude <- seq(min(data$altitude), max(data$altitude))
-        species <- rep(levels(data$species), each = length(altitude))
-        # remove the changing variables from the reference data
-        ref <- select(ref_data, -altitude, -species)
-        # create the new data
-        newdata <- data.frame(altitude, species, ref)}
-    else {
-        if (typeof(data[[term]]) == "double") {
-            assign(
-                term,
-                seq(
-                    min(data[["count"]], na.rm = T),
-                    max(data[["count"]], na.rm = T)))}
-        else {assign(term, levels(data[[term]]))}
-        # remove the term column from the refence data
-        ref <- select(ref_data, -term)
-        # create the new data
-        newdata <- data.frame(get(term), ref) %>%
-            rename(!!term := get.term.)}
+    # altitude has an interaction term
+    if (typeof(data[[term]]) == "double") {
+        assign(term, seq(min(data[[term]]), max(data[[term]])))
+        if (term == "altitude") {
+            species <- rep(levels(data$species), each = length(altitude))
+            ref <- select(ref_data, -species)
+            ref <- cbind(species, ref)}}
+    else {assign(term, levels(data[[term]]))}
+    # remove the term column from the refence data
+    ref <- select(ref, -!!term)
+    # create the new data
+    newdata <- data.frame(get(term), ref) %>%
+        rename(!!term := get.term.)
     # predict from new data excluding location and
     # flight to make predictions general
     pred <- predict(
@@ -129,6 +130,7 @@ for (term in terms) {
         newdata,
         se.fit = TRUE,
         type = "link")
+        # exclude = "s(flight)")
     # transform prediction to response scale
     prediction <- cbind(newdata, pred) %>%
         mutate(
@@ -136,25 +138,26 @@ for (term in terms) {
             lwr = ilink(fit - (2 * se.fit)),
             fit = ilink(fit))
     # generate plot
-    if (typeof(data[[term]]) == "double") {
-        plot <- ggplot(data = prediction, aes_string(x = term, y = "fit")) +
-            geom_line() +
-            geom_ribbon(
-                aes(ymin = lwr, ymax = upr),
-                alpha = 0.5) +
-            theme(panel.background = element_rect(fill = "white")) +
-            ylab("Hazard Rate") +
-            facet_wrap("species") +
-            ylim(0, 0.25)
-    }
-    else {
-        plot <- ggplot(data = prediction, aes_string(x = term, y = "fit")) +
-            geom_pointrange(aes(ymin = lwr, ymax = upr)) +
-            theme(panel.background = element_rect(fill = "white")) +
-            ylab("Hazard Rate") +
-            ylim(0, 0.25)
-    }
+    plot <- ggplot(data = prediction, aes_string(x = term, y = "fit")) +
+        theme_bw() +
+        {if (typeof(data[[term]]) == "double") list(
+            geom_line(),
+            geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.5))} +
+        {if (typeof(data[[term]]) != "double") list(
+            geom_pointrange(
+                aes_string(
+                    x = paste0("reorder(", term, ", -fit)"),
+                    ymin = "lwr",
+                    ymax = "upr")),
+            theme(axis.text.x = element_text(angle = 90, vjust = 0.5)))} +
+        {if (term == "altitude") facet_wrap("species")} +
+        ylab("Hazard Rate") +
+        scale_y_continuous(
+            breaks = c(10^-12 %o% 10^seq(2, 10, 2)),
+            trans = scales::log_trans()) +
+        coord_cartesian(ylim = c(10^-11, 0.1))
+
     # save plot
     plot_name <- paste0("plots/", term, ".png")
-    ggsave(plot_name, plot, height = 5, width = 5)
+    ggsave(plot_name, plot, height = 6, width = 6)
 }

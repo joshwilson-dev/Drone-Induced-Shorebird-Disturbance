@@ -17,7 +17,7 @@
 rm(list = ls())
 
 # Specify required packages
-packages <- c("tidyr", "ggplot2", "readr", "dplyr", "pammtools")
+packages <- c("tidyr", "ggplot2", "readr", "dplyr")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -63,6 +63,9 @@ ref <- data_fit %>%
 test_flight <- read_csv("data/dibd_test_flight.csv") %>%
     filter(time_since_launch %% 1 == 0)
 
+# get inverse link
+ilink <- family(fit)$linkinv
+
 # This function adds the required explanitory variables to the test flight
 log_simulator <- function(fit, altitude_list, species_list, predict) {
     df_i <- data.frame()
@@ -105,10 +108,22 @@ log_simulator <- function(fit, altitude_list, species_list, predict) {
                     test_altitude = test_altitude)
             # predicting survival probability
             if (predict == TRUE) {
-                prediction <- flight_log_new %>%
-                    mutate(intlen = 1) %>%
-                    # exclude flight and location for general results
-                    add_surv_prob(fit, exclude = c("s(flight)", "s(location)"))
+                pred <- predict(
+                    fit,
+                    flight_log_new,
+                    se.fit = TRUE,
+                    type = "link",
+                    exclude = "s(flight)")
+                # transform prediction to response scale
+                # and calculate survival probability
+                prediction <- cbind(flight_log_new, pred) %>%
+                    mutate(
+                        upr = ilink(fit + (2 * se.fit)),
+                        lwr = ilink(fit - (2 * se.fit)),
+                        fit = ilink(fit),
+                        surv_prob = 1 - exp(-cumsum(fit)),
+                        surv_upper = 1 - exp(-cumsum(upr)),
+                        surv_lower = 1 - exp(-cumsum(lwr)))
             }
             else {
                 prediction <- flight_log_new %>%
@@ -200,8 +215,8 @@ surv_plot <- ggplot() +
 ggsave(
     "plots/example_prediction.png",
     surv_plot,
-    height = 10,
-    width = 10)
+    height = 5,
+    width = 5)
 
 # creating contour plot of flight probability for each species
 # only use advancing data to avoid conflicting points
@@ -272,6 +287,7 @@ sentinel_proportion <- data %>%
     filter(max(`response_Eastern Curlew`) == 1) %>%
     # keep only the max response for each flight and species
     group_by(flight, species) %>%
+    filter(species != "Eastern Curlew") %>%
     filter(response == max(response)) %>%
     slice(1) %>%
     # count number of flights vs no flights
@@ -291,15 +307,18 @@ sentinel_proportion <- data %>%
             T ~ as.double(`No Flight`))) %>%
     # add n
     mutate(
-        `Flight Percentage` = (100 * Flight) / (Flight + `No Flight`),
-        n = paste("n =", Flight + `No Flight`))
+        `Sentinel Induced Flight Proportion` =
+        (100 * Flight) / (Flight + `No Flight`),
+        n = paste(Flight + `No Flight`))
 
 # create plot
 sentinel_proportion_plot <- ggplot(
     data = sentinel_proportion,
-    aes(x = reorder(species, -`Flight Percentage`), y = `Flight Percentage`)) +
+    aes(
+        x = reorder(species, -`Sentinel Induced Flight Proportion`),
+        y = `Sentinel Induced Flight Proportion`)) +
     geom_bar(stat = "identity") +
-    geom_text(aes(label = n), vjust = 1.5, size = 2.5, color = "black") +
+    geom_text(aes(label = n), vjust = 1.25, size = 2.5, color = "black") +
     theme(
         panel.background = element_rect(fill = "white"),
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
@@ -308,8 +327,8 @@ sentinel_proportion_plot <- ggplot(
 ggsave(
     "plots/sentinel_proportion.png",
     sentinel_proportion_plot,
-    height = 6.25,
-    width = 6.25)
+    height = 4,
+    width = 4)
 
 # plot points where species took flight due to
 # sentinel over the top of expected response

@@ -104,3 +104,5 @@ approaches_per_drone <- data_ped %>%
     summarise(count = n())
 
 View(approaches_per_drone)
+
+sd(data$temperature)

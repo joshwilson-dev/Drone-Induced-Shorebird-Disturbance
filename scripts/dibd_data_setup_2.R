@@ -255,8 +255,8 @@ data_clean <- data_long %>%
             is.na(tree_dist) |
             (ground_distance < tree_dist |
             altitude > tree_height *
-            ground_distance / tree_dist) ~ "not obscured",
-            TRUE ~ "obscured"),
+            ground_distance / tree_dist) ~ "No",
+            TRUE ~ "YES"),
         # calculate hours to nearest high tide
         hightide_time_aest = (
             as_datetime(
