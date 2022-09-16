@@ -107,6 +107,9 @@ terms <- attributes(fit$terms)$term.labels
 # create plots
 for (term in terms) {
     print(term)
+    # height and width of plots
+    height <- 4
+    width <- 4
     ref <- ref_data
     # check if term is continuous or categorical
     # and get sequence from min to max, or all unique categories
@@ -114,6 +117,8 @@ for (term in terms) {
     if (typeof(data[[term]]) == "double") {
         assign(term, seq(min(data[[term]]), max(data[[term]])))
         if (term == "altitude") {
+            height <- 6
+            width <- 6
             species <- rep(levels(data$species), each = length(altitude))
             ref <- select(ref_data, -species)
             ref <- cbind(species, ref)}}
@@ -159,5 +164,5 @@ for (term in terms) {
 
     # save plot
     plot_name <- paste0("plots/", term, ".png")
-    ggsave(plot_name, plot, height = 6, width = 6)
+    ggsave(plot_name, plot, height = height, width = width)
 }

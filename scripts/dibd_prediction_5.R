@@ -45,7 +45,6 @@ data_fit <- data %>%
         species = as.factor(species),
         location = as.factor(location),
         obscured = as.factor(obscured))
-
 ###########################################################################
 #### Survival Probability and Flight Initiation Distance Visualisation ####
 ###########################################################################
@@ -66,11 +65,21 @@ test_flight <- read_csv("data/dibd_test_flight.csv") %>%
 # get inverse link
 ilink <- family(fit)$linkinv
 
+# get a list of the species that were included in the model
+fit_species <- data_fit %>%
+    # filter out species that never took flight
+    group_by(species) %>%
+    filter(max(response) == 1) %>%
+    filter(!is.na(species)) %>%
+    {unique(.$species)}
+
 # This function adds the required explanitory variables to the test flight
-log_simulator <- function(fit, altitude_list, species_list, predict) {
+log_simulator <- function(fit, altitude_list, species_list) {
     df_i <- data.frame()
+
     for (species_index in seq_len(length(species_list))) {
         target <- species_list[species_index]
+        print(target)
         # loop through test altitudes, crop the test flight accordingly
         # predict the survival probability and save the output
         for (altitude_index in seq_len(length(altitude_list))) {
@@ -103,11 +112,11 @@ log_simulator <- function(fit, altitude_list, species_list, predict) {
                     temperature = ref$temperature,
                     location = ref$location,
                     stimulus = "mavic 2 pro",
-                    obscured = "not obscured",
+                    obscured = "No",
                     count = ref$count,
                     test_altitude = test_altitude)
             # predicting survival probability
-            if (predict == TRUE) {
+            if (target %in% fit_species) {
                 pred <- predict(
                     fit,
                     flight_log_new,
@@ -121,17 +130,16 @@ log_simulator <- function(fit, altitude_list, species_list, predict) {
                         upr = ilink(fit + (2 * se.fit)),
                         lwr = ilink(fit - (2 * se.fit)),
                         fit = ilink(fit),
-                        surv_prob = 1 - exp(-cumsum(fit)),
-                        surv_upper = 1 - exp(-cumsum(upr)),
-                        surv_lower = 1 - exp(-cumsum(lwr)))
+                        flight_prob = 1 - exp(-cumsum(fit)),
+                        flight_lower = 1 - exp(-cumsum(upr)),
+                        flight_upper = 1 - exp(-cumsum(lwr)))
             }
             else {
                 prediction <- flight_log_new %>%
                     mutate(
-                        intlen = 1,
-                        surv_prob = 1,
-                        surv_lower = 1,
-                        surv_upper = 1)
+                        flight_prob = 1,
+                        flight_lower = 1,
+                        flight_upper = 1)
             }
             # saving dataframe
             df_i <- bind_rows(df_i, prediction)
@@ -143,32 +151,30 @@ log_simulator <- function(fit, altitude_list, species_list, predict) {
 # predict for altitudes between 0 and 120m
 altitudes <- seq_range(0:120, by = 10)
 
-# predict for all species that never took off
-target_birds <- data_fit %>%
-    # filter out species that took flight at least once
-    group_by(species) %>%
-    filter(max(response) == 0) %>%
-    {unique(.$species)}
+# predict for all species
+# target_birds <- unique(data_fit$species)
 
-# make survival data for species that never took flight
-survival_data_noflight <- log_simulator(fit, altitudes, target_birds, FALSE)
+#predict just for species with enough data and relevant
+target_birds <- c(
+            "Eastern Curlew",
+            "Grey-tailed Tattler",
+            "Whimbrel",
+            "Gull-billed Tern",
+            "Royal Spoonbill",
+            "Great Knot",
+            "Pied Stilt",
+            "Masked Lapwing",
+            "Caspian Tern",
+            "Pied Oystercatcher",
+            "Bar-tailed Godwit",
+            "Terek Sandpiper")
 
-# predict for all species that took flight at least once
-target_birds <- data_fit %>%
-    # filter out species that never took flight
-    group_by(species) %>%
-    filter(max(response) == 1) %>%
-    filter(!is.na(species)) %>%
-    {unique(.$species)}
-
-# generate predictions for species that did take flight at least once
-survival_data_flight <- log_simulator(fit, altitudes, target_birds, TRUE)
-
-# join survival data
-survival_data <- bind_rows(survival_data_noflight, survival_data_flight)
+# generate predictions
+flight_data <- log_simulator(fit, altitudes, target_birds) %>%
+    mutate(species = factor(species, levels = target_birds, ordered = TRUE))
 
 # example prediction
-flight_log <- survival_data %>%
+example_prediction <- flight_data %>%
     # select eastern curlew
     filter(
         test_altitude == 120,
@@ -179,26 +185,27 @@ flight_log <- survival_data %>%
         altitude = altitude / max(altitude)) %>%
     # pivot for plotting
     pivot_longer(
-        c(ground_distance, altitude, surv_prob),
+        c(ground_distance, altitude, flight_prob),
         names_to = "legend",
         values_to = "line") %>%
     mutate(legend = case_when(
-        legend == "surv_prob" ~ "Probability of Not Disturbing Birds",
+        legend == "flight_prob" ~ "Probability of Birds Having Taken Flight",
         legend == "ground_distance" ~ "Normalised Ground Distance [0:500m]",
         legend == "altitude" ~ "Normalised Altitude [0:120m]"))
+
 # plot the prediction
-surv_plot <- ggplot() +
+example_prediction_plot <- ggplot() +
     geom_line(
-        data = flight_log,
+        data = example_prediction,
         aes(y = line, x = tend, linetype = legend),
         size = 1) +
     geom_ribbon(
         data = filter(
-            flight_log,
-            legend == "Probability of Not Disturbing Birds"),
-        aes(x = tend, ymin = surv_lower, ymax = surv_upper),
+            example_prediction,
+            legend == "Probability of Birds Having Taken Flight"),
+        aes(x = tend, ymin = flight_lower, ymax = flight_upper),
         alpha = 0.3) +
-    scale_linetype_manual(values = c("dotted", "longdash", "solid")) +
+    scale_linetype_manual(values = c("dotted", "twodash", "solid")) +
     xlab("Time Since Launch [s]") +
     ylab("Normalised Values") +
     coord_cartesian(ylim = c(0, 1)) +
@@ -214,13 +221,13 @@ surv_plot <- ggplot() +
 
 ggsave(
     "plots/example_prediction.png",
-    surv_plot,
+    example_prediction_plot,
     height = 5,
     width = 5)
 
 # creating contour plot of flight probability for each species
 # only use advancing data to avoid conflicting points
-advancing <- survival_data %>%
+advancing <- flight_data %>%
     mutate(altitude = round(altitude)) %>%
     filter(altitude == test_altitude)
 
@@ -228,8 +235,10 @@ advancing <- survival_data %>%
 data_raw <- data_fit %>%
     # inspire 2 significantly more disturbance than smaller drones
     filter(stimulus != "inspire 2") %>%
-    # only keep points at 10s intervals to avoid crowding plots
-    filter(time_since_launch %% 10 == 0 | response == 1) %>%
+    #only getraw data for included species
+    filter(species %in% target_birds) %>%
+    # only keep points at 20s intervals to avoid crowding plots
+    filter(time_since_launch %% 30 == 0 | response == 1) %>%
     # change binary response to descriptive
     mutate(response = case_when(
         response == 1 ~ "Flight",
@@ -240,41 +249,57 @@ fid_plot <- ggplot() +
     # add filled contours
     geom_contour_filled(
         data = advancing,
-        aes(x = ground_distance, y = altitude, z = surv_prob),
+        aes(x = ground_distance, y = altitude, z = flight_prob),
         binwidth = 0.25) +
     # add black contour lines
     geom_contour(
         data = advancing,
-        aes(x = ground_distance, y = altitude, z = surv_prob),
+        aes(x = ground_distance, y = altitude, z = flight_prob),
         binwidth = 0.25,
+        size = 0.15,
         colour = "black") +
     # add dashed line for upper confidence interval at 0.5
     geom_contour(
         data = advancing,
-        aes(x = ground_distance, y = altitude, z = surv_lower),
-        binwidth = 0.5,
+        aes(
+            linetype = "50% Flight Prob Upper CI",
+            x = ground_distance,
+            y = altitude,
+            z = flight_lower),
+        breaks = 0.5,
         colour = "black",
-        linetype = "dashed") +
+        size = 0.35) +
     # add raw data points
     geom_point(
         data = data_raw,
         aes(x = ground_distance, y = altitude,
         colour = factor(response)),
-        size = 0.5) +
+        size = 0.35) +
     # define colours for flight probability contours
-    scale_fill_grey(start = 0.5, end = 1.0) +
+    scale_fill_grey(start = 1.0, end = 0.5) +
+    # define colours for points
     scale_colour_grey() +
+    # define linetype for 50% Flight Prob Upper CI contour
+    scale_linetype_manual(values = c("dashed")) +
     # plot aesthetics
     theme(panel.background = element_rect(fill = "white")) +
+    labs(
+        colour = "Raw Data",
+        fill = "Flight Probability",
+        linetype = "95% Confidence Interval") +
     scale_x_continuous(limits = c(0, 500), expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
     coord_fixed() +
     # facet wrap by common name
-    facet_wrap("species", ncol = 4)
+    facet_wrap("species", ncol = 3)
 
 # save plot
-ggsave("plots/fid.png", fid_plot, height = 20, width = 20)
+ggsave("plots/fid.png", fid_plot, height = 5, width = 10)
 
+
+check <- flight_data %>%
+    filter(species == "Eastern Curlew") %>%
+    filter(test_altitude == 120)
 # plot proportion of eastern curlew flights
 # that induced flight in other species within 10s
 
