@@ -35,6 +35,11 @@ lapply(packages, require, character.only = TRUE)
 # import data
 data <- read_csv("data/dibd_prep.csv")
 
+check <- data_fit %>%
+    filter(species == "Eastern Curlew", location == "Toorbul") %>%
+    group_by(flight) %>%
+    slice(1) %>%
+    select(count, flight)
 data_fit <- data %>%
     # remove data points where another species already took flight
     filter(response == 0 | sum_response == 1) %>%
@@ -54,14 +59,20 @@ fit <- readRDS("models/model.rds")
 summary(fit)
 
 # determine the mean or mode for all numerical or categorical variables
-ref <- data_fit %>%
-    ungroup() %>%
-    sample_info()
-
+modus <- function(var) {
+  # calculate modus
+  freqs <- table(var)
+  mod   <- names(freqs)[which.max(freqs)]
+  # factors should be returned as factors with all factor levels
+  if (is.factor(var)) {
+    mod <- factor(mod, levels = levels(var))
+  }
+  return(mod)
+}
 
 num <- summarize_if(data_fit, .predicate = is.numeric, ~mean(., na.rm = TRUE))
-fac <- summarize_if(select_if(data_fit, ~!is.numeric(.x)), modus)
-x <- bind_cols(num, fac)
+fac <- summarise_all(select_if(data_fit, ~!is.numeric(.x)), modus)
+ref <- bind_cols(num, fac)
 
 # load test flight launched from 500m, approach at 120m
 test_flight <- read_csv("data/dibd_test_flight.csv") %>%
@@ -116,8 +127,9 @@ log_simulator <- function(fit, altitude_list, species_list) {
                     wind_speed = ref$wind_speed,
                     temperature = ref$temperature,
                     location = ref$location,
-                    stimulus = "mavic 2 pro",
-                    obscured = "No",
+                    stimulus = ref$stimulus,
+                    # stimulus = "inspire 2",
+                    obscured = ref$obscured,
                     count = ref$count,
                     test_altitude = test_altitude)
             # predicting survival probability
