@@ -17,7 +17,7 @@
 rm(list = ls())
 
 # Specify required packages
-packages <- c("tidyr", "ggplot2", "readr", "dplyr")
+packages <- c("tidyr", "ggplot2", "readr", "dplyr", "pammtools")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -57,6 +57,11 @@ summary(fit)
 ref <- data_fit %>%
     ungroup() %>%
     sample_info()
+
+
+num <- summarize_if(data_fit, .predicate = is.numeric, ~mean(., na.rm = TRUE))
+fac <- summarize_if(select_if(data_fit, ~!is.numeric(.x)), modus)
+x <- bind_cols(num, fac)
 
 # load test flight launched from 500m, approach at 120m
 test_flight <- read_csv("data/dibd_test_flight.csv") %>%
@@ -296,10 +301,6 @@ fid_plot <- ggplot() +
 # save plot
 ggsave("plots/fid.png", fid_plot, height = 5, width = 10)
 
-
-check <- flight_data %>%
-    filter(species == "Eastern Curlew") %>%
-    filter(test_altitude == 120)
 # plot proportion of eastern curlew flights
 # that induced flight in other species within 10s
 
@@ -367,41 +368,59 @@ sentinel_points <- data %>%
     # flight and species
     group_by(flight, species) %>%
     filter(response == 1) %>%
+    mutate(response = "Flight") %>%
+    # keep only target species
+    filter(species %in% target_birds) %>%
+    # drop Eastern Curlew
+    mutate(species = factor(species, levels = target_birds, ordered = TRUE)) %>%
+    filter(species != "Eastern Curlew") %>%
     slice(1)
 
 sentinel_points_plot <- ggplot() +
     # add filled contours
     geom_contour_filled(
-        data = advancing,
-        aes(x = ground_distance, y = altitude, z = surv_prob),
+        data = filter(advancing, species != "Eastern Curlew"),
+        aes(x = ground_distance, y = altitude, z = flight_prob),
         binwidth = 0.25) +
     # add black contour lines
     geom_contour(
-        data = advancing,
-        aes(x = ground_distance, y = altitude, z = surv_prob),
+        data = filter(advancing, species != "Eastern Curlew"),
+        aes(x = ground_distance, y = altitude, z = flight_prob),
         binwidth = 0.25,
+        size = 0.15,
         colour = "black") +
     # add dashed line for upper confidence interval at 0.5
     geom_contour(
-        data = advancing,
-        aes(x = ground_distance, y = altitude, z = surv_lower),
-        binwidth = 0.5,
+        data = filter(advancing, species != "Eastern Curlew"),
+        aes(
+            linetype = "50% Flight Prob Upper CI",
+            x = ground_distance,
+            y = altitude,
+            z = flight_lower),
+        breaks = 0.5,
         colour = "black",
-        linetype = "dashed") +
+        size = 0.5) +
     # add raw data points
     geom_point(
         data = sentinel_points,
-        aes(x = ground_distance, y = altitude),
-        size = 0.5) +
+        aes(colour = factor(response), x = ground_distance, y = altitude),
+        size = 1) +
     # define colours for flight probability contours
-    scale_fill_grey(start = 0.5, end = 1.0) +
+    scale_fill_grey(start = 1.0, end = 0.5) +
+    # define colours for points
     scale_colour_grey() +
+    # define linetype for 50% Flight Prob Upper CI contour
+    scale_linetype_manual(values = c("dashed")) +
     # plot aesthetics
     theme(panel.background = element_rect(fill = "white")) +
+    labs(
+        colour = "Raw Data",
+        fill = "Flight Probability",
+        linetype = "95% Confidence Interval") +
     scale_x_continuous(limits = c(0, 500), expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
     coord_fixed() +
     # facet wrap by common name
-    facet_wrap("species", ncol = 4)
+    facet_wrap("species", ncol = 3)
 
-ggsave("plots/sentinel_points.png", sentinel_points_plot, height = 20, width = 20)
+ggsave("plots/sentinel_points.png", sentinel_points_plot, height = 5, width = 10)

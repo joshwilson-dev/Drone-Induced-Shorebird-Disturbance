@@ -97,15 +97,8 @@ ref_data <- data %>%
     ungroup() %>%
     sample_info()
 
-# get terms
-data <- data %>%
-    filter(flight != 249) %>%
-    droplevels()
-
-terms <- attributes(fit$terms)$term.labels
-
 # create plots
-for (term in terms) {
+for (term in attributes(fit$terms)$term.labels) {
     print(term)
     # height and width of plots
     height <- 4
