@@ -47,16 +47,18 @@ total_appraoches <- data %>%
 
 View(total_appraoches)
 
-approaches_per_species <- data %>%
+approaches_species <- data %>%
     group_by(flight, species) %>%
     slice(1) %>%
-    group_by(species) %>%
+    group_by(species, scientific_name) %>%
     summarise(Approaches = n())
 
-View(approaches_per_species)
+View(approaches_species)
+
+write.csv(approaches_species, "data/approaches_species.csv", row.names = FALSE)
 
 approaches_per_species_plot <- ggplot(
-    data = approaches_per_species,
+    data = approaches_species,
     aes(x = reorder(species, -Approaches), y = Approaches)) +
     geom_bar(stat = "identity") +
     theme(
@@ -89,7 +91,7 @@ approaches_without_sentinel <- data %>%
 
 View(approaches_without_sentinel)
 
-approaches_per_site <-  data_ped %>%
+approaches_per_site <-  data %>%
     group_by(flight) %>%
     slice(1) %>%
     group_by(location) %>%
@@ -97,12 +99,13 @@ approaches_per_site <-  data_ped %>%
 
 View(approaches_per_site)
 
-approaches_per_drone <- data_ped %>%
+approaches_per_drone <- data %>%
     group_by(flight) %>%
     slice(1) %>%
-    group_by(specification) %>%
+    group_by(stimulus) %>%
     summarise(count = n())
 
 View(approaches_per_drone)
 
-sd(data$temperature)
+sd(data$temperature_degC)
+mean(filter(data, species == "Eastern Curlew")$temperature_degC)

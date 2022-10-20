@@ -2,7 +2,7 @@
 #### Header ####
 ################
 
-# Title: Shorebird Disturbance Dataset Setup
+# Title: Shorebird Disturbance Data Setup
 # Author: Josh Wilson
 # Date: 29-08-2022
 
@@ -14,7 +14,7 @@
 rm(list = ls())
 
 # Install Packages
-packages <- c("tidyverse", "lubridate", "zoo")
+packages <- c("readr", "dplyr", "tidyr", "lubridate")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -38,7 +38,7 @@ data <- read_csv(unz("data/dibd.zip", "dibd.csv"), guess_max = 1000000)
 
 # scientific to common names
 sci_com <- data.frame(
-    species = c(
+    scientific_name = c(
         "ardea alba",
         "ardea intermedia",
         "bubulcus ibis",
@@ -63,7 +63,7 @@ sci_com <- data.frame(
         "xenus cinereus",
         "calidris ferruginea"
     ),
-    common_name = c(
+    species = c(
         "Great Egret",
         "Intermediate Egret",
         "Cattle Egret",
@@ -103,9 +103,9 @@ data_long <- data %>%
         ends_with("lat") |
         ends_with("long") |
         ends_with("notes"),
-        names_to = c("species", ".value"),
+        names_to = c("scientific_name", ".value"),
         names_pattern = "(.+) (.+)",
-        names_transform = list(species = as.factor),
+        names_transform = list(scientific_name = as.factor),
         values_drop_na = TRUE)
 
 data_clean <- data_long %>%
@@ -119,24 +119,26 @@ data_clean <- data_long %>%
         is.na(notes)) %>%
     # rename variables
     rename(
+        # rename time
+        time_since_launch_s = time_since_launch,
         # rename ascent velocity
-        ascent_velocity = `zSpeed(m/s)`,
+        velocity_z_m.s = `zSpeed(m/s)`,
         # rename drone heading
-        heading = `compass_heading(degrees)`,
+        heading_deg = `compass_heading(degrees)`,
         # rename drone position
         drone_latitude = latitude,
         drone_longitude = longitude,
         # rename temperature
-        temperature = `temperature (degrees celcius)`,
+        temperature_degC = `temperature (degrees celcius)`,
         # rename cloud cover
-        cloud_cover = `cloud cover (%)`,
+        cloud_cover_percent = `cloud cover (%)`,
         # rename wind speed
-        wind_speed = `wind speed (m/s)`,
+        wind_speed_m.s = `wind speed (m/s)`,
         # rename bird position
-        latitude = lat,
-        longitude = long,
+        bird_latitude = lat,
+        bird_longitude = long,
         # rename altitude above sea level
-        altitude_above_sea = `altitude_above_seaLevel(meters)`,
+        altitude_above_sea_m = `altitude_above_seaLevel(meters)`,
         # rename response
         response = behaviour
     ) %>%
@@ -145,56 +147,54 @@ data_clean <- data_long %>%
     # drop NA response
     drop_na(response) %>%
     # arrange correctly
-    arrange(flight, species, time_since_launch) %>%
+    arrange(flight, species, time_since_launch_s) %>%
     group_by(flight, species) %>%
     # creat new variables
     mutate(
-        # change species to common name
-        species = common_name,
         # convert response to binary
         response = case_when(response == "nominal" ~ 0, TRUE ~ 1),
         # add in distance between drone and birds
-        ground_distance = (
+        distance_x_m = (
             6371009 * sqrt(((pi / 180) *
-            (latitude - drone_latitude))^2 +
-            ((cos((pi / 180) * (latitude + drone_latitude) / 2) *
+            (bird_latitude - drone_latitude))^2 +
+            ((cos((pi / 180) * (bird_latitude + drone_latitude) / 2) *
             (pi / 180) *
-            (longitude - drone_longitude))) ^ 2)),
+            (bird_longitude - drone_longitude))) ^ 2)),
         # add in bearing between drone and birds
-        bearing  = (
+        bearing_deg  = (
             (180 / pi) * atan2(
-                cos((pi / 180) * latitude) *
-                sin((pi / 180) * (longitude - drone_longitude)),
+                cos((pi / 180) * bird_latitude) *
+                sin((pi / 180) * (bird_longitude - drone_longitude)),
                 cos((pi / 180) * drone_latitude) *
-                sin((pi / 180) * latitude) -
+                sin((pi / 180) * bird_latitude) -
                 sin((pi / 180) * drone_latitude) *
-                cos((pi / 180) * latitude) *
-                cos((pi / 180) * (longitude - drone_longitude)))),
+                cos((pi / 180) * bird_latitude) *
+                cos((pi / 180) * (bird_longitude - drone_longitude)))),
         # find drone velocity in direction of birds
-        approach_velocity = (
-            `xSpeed(m/s)` * cos((pi / 180) * bearing) +
-            `ySpeed(m/s)` * sin((pi / 180) * bearing)),
+        velocity_x_m.s = (
+            `xSpeed(m/s)` * cos((pi / 180) * bearing_deg) +
+            `ySpeed(m/s)` * sin((pi / 180) * bearing_deg)),
         # find drone velocity perpendicular to direction of birds (symmetric)
-        perpendicular_velocity = (abs(
-            `ySpeed(m/s)` * cos((pi / 180) * bearing) -
-            `xSpeed(m/s)` * sin((pi / 180) * bearing))),
+        velocity_y_m.s = (abs(
+            `ySpeed(m/s)` * cos((pi / 180) * bearing_deg) -
+            `xSpeed(m/s)` * sin((pi / 180) * bearing_deg))),
         # calculate drone acceleration
-        acceleration_z = (
-            ascent_velocity -
-            lag(ascent_velocity, default = first(ascent_velocity))) /
+        acceleration_z_m.s.s = (
+            velocity_z_m.s -
+            lag(velocity_z_m.s, default = first(velocity_z_m.s))) /
             0.1,
-        acceleration_x = (
+        acceleration_x_m.s.s = (
             `xSpeed(m/s)` -
             lag(`xSpeed(m/s)`, default = first(`xSpeed(m/s)`))) /
             0.1,
-        acceleration_y = (
+        acceleration_y_m.s.s = (
             `ySpeed(m/s)` -
             lag(`ySpeed(m/s)`, default = first(`ySpeed(m/s)`))) /
             0.1,
-        acceleration = (
-            acceleration_y**2 +
-            acceleration_x**2 +
-            acceleration_z**2)**0.5,
+        acceleration_xyz_m.s.s = (
+            acceleration_y_m.s.s**2 +
+            acceleration_x_m.s.s**2 +
+            acceleration_z_m.s.s**2)**0.5,
         # change datetime to aest
         datetime_aest = (
             as_datetime(
@@ -208,54 +208,54 @@ data_clean <- data_long %>%
         # add month integer
         month_aest = month(datetime_aest),
         # convert wind direction to same coordinate system as drone
-        wind_direction = (
+        wind_direction_deg = (
             `wind direction (degrees)`
             + 180) %% 360,
         # add location
         location = case_when(
-            latitude > -27.0424 - 0.01 &
-            latitude < -27.0424 + 0.01 &
-            longitude > 153.1056 - 0.01 &
-            longitude < 153.1056 + 0.01 ~ "Toorbul",
-            latitude > -27.4796 - 0.01 &
-            latitude < -27.4796 + 0.01 &
-            longitude > 153.2051 - 0.01 &
-            longitude < 153.2051 + 0.01 ~ "Thorneside",
-            latitude > -27.5351 - 0.01 &
-            latitude < -27.5351 + 0.01 &
-            longitude > 153.2837 - 0.01 &
-            longitude < 153.2837 + 0.01 ~ "Cleveland",
-            latitude > -27.4854 - 0.01 &
-            latitude < -27.4854 + 0.01 &
-            longitude > 153.2415 - 0.01 &
-            longitude < 153.2415 + 0.01 ~ "Wellington Point",
-            latitude > -27.0360 - 0.01 &
-            latitude < -27.0360 + 0.01 &
-            longitude > 153.0530 - 0.01 &
-            longitude < 153.0530 + 0.01 ~ "Meldale",
-            latitude > -27.4503 - 0.01 &
-            latitude < -27.4503 + 0.01 &
-            longitude > 153.1878 - 0.01 &
-            longitude < 153.1878 + 0.01 ~ "Manly"),
+            bird_latitude > -27.0424 - 0.01 &
+            bird_latitude < -27.0424 + 0.01 &
+            bird_longitude > 153.1056 - 0.01 &
+            bird_longitude < 153.1056 + 0.01 ~ "Toorbul",
+            bird_latitude > -27.4796 - 0.01 &
+            bird_latitude < -27.4796 + 0.01 &
+            bird_longitude > 153.2051 - 0.01 &
+            bird_longitude < 153.2051 + 0.01 ~ "Thorneside",
+            bird_latitude > -27.5351 - 0.01 &
+            bird_latitude < -27.5351 + 0.01 &
+            bird_longitude > 153.2837 - 0.01 &
+            bird_longitude < 153.2837 + 0.01 ~ "Cleveland",
+            bird_latitude > -27.4854 - 0.01 &
+            bird_latitude < -27.4854 + 0.01 &
+            bird_longitude > 153.2415 - 0.01 &
+            bird_longitude < 153.2415 + 0.01 ~ "Wellington Point",
+            bird_latitude > -27.0360 - 0.01 &
+            bird_latitude < -27.0360 + 0.01 &
+            bird_longitude > 153.0530 - 0.01 &
+            bird_longitude < 153.0530 + 0.01 ~ "Meldale",
+            bird_latitude > -27.4503 - 0.01 &
+            bird_latitude < -27.4503 + 0.01 &
+            bird_longitude > 153.1878 - 0.01 &
+            bird_longitude < 153.1878 + 0.01 ~ "Manly"),
         # calculate altitude above birds
-        altitude = case_when(
-            location == "Toorbul" ~ altitude_above_sea - 0,
-            location == "Thorneside" ~ altitude_above_sea - 0,
-            location == "Cleveland" ~ altitude_above_sea - 0,
-            location == "Wellington Point" ~ altitude_above_sea - 3,
-            location == "Meldale" ~ altitude_above_sea - 0,
-            location == "Manly" ~ altitude_above_sea - 0),
+        distance_z_m = case_when(
+            location == "Toorbul" ~ altitude_above_sea_m - 0,
+            location == "Thorneside" ~ altitude_above_sea_m - 0,
+            location == "Cleveland" ~ altitude_above_sea_m - 0,
+            location == "Wellington Point" ~ altitude_above_sea_m - 3,
+            location == "Meldale" ~ altitude_above_sea_m - 0,
+            location == "Manly" ~ altitude_above_sea_m - 0),
         # check if drone obscured by trees
         tree_dist = (
             6371009 * sqrt(((pi / 180) *
-            (latitude - lat_tree))^2 +
-            ((cos((pi / 180) * (latitude + lat_tree) / 2) * (pi / 180) *
-            (longitude - lon_tree))) ^ 2)),
-        obscured = case_when(
+            (bird_latitude - lat_tree))^2 +
+            ((cos((pi / 180) * (bird_latitude + lat_tree) / 2) * (pi / 180) *
+            (bird_longitude - lon_tree))) ^ 2)),
+        behind_trees = case_when(
             is.na(tree_dist) |
-            (ground_distance < tree_dist |
-            altitude > tree_height *
-            ground_distance / tree_dist) ~ "NO",
+            (distance_x_m < tree_dist |
+            distance_z_m > tree_height *
+            distance_x_m / tree_dist) ~ "NO",
             TRUE ~ "YES"),
         # calculate hours to nearest high tide
         hightide_time_aest = (
@@ -263,22 +263,19 @@ data_clean <- data_long %>%
                 (`high tide time (aest)` - 10 / 24) * 60 * 60 * 24,
                 origin = "1899/12/30 0:00:00.00",
                 tz = "australia/queensland")),
-        hours_from_high_tide = as.numeric(difftime(
+        time_to_high_tide_hr = as.numeric(difftime(
             datetime_aest,
             hightide_time_aest,
             units = "hours")),
         # add constant parameters
         life_stage = "non-breeding",
         age = "adult",
-        stimulus = drone,
-        habitat = "IUCN:MT1.2",
-        background_noise = 50,
-        background_light = 100000) %>%
+        stimulus = drone) %>%
     # crop data to 10s after birds take flight
     group_by(flight, species, response) %>%
     filter(response == 0 | row_number() <= 100) %>%
     # add id for merge
-    group_by(flight, time_since_launch) %>%
+    group_by(flight, time_since_launch_s) %>%
     mutate(col_id = cur_group_id())
 
 # add back on non-target species counts
@@ -309,38 +306,37 @@ data_complete <- data_clean %>%
     filter(response == 0 | row_number() <= 1) %>%
     # degrade data to every second but keep
     # points where birds took flight
-    filter(response == 1 | time_since_launch %% 1 == 0) %>%
+    filter(response == 1 | time_since_launch_s %% 1 == 0) %>%
     # select only needed columns
     select(
         flight,
-        time_since_launch,
+        time_since_launch_s,
         response,
         species,
+        scientific_name,
         count,
         life_stage,
         activity,
         age,
-        latitude,
-        longitude,
+        bird_latitude,
+        bird_longitude,
         contains("count_"),
         contains("response_"),
         stimulus,
-        ground_distance,
-        altitude,
-        approach_velocity,
-        perpendicular_velocity,
-        ascent_velocity,
-        acceleration,
-        obscured,
+        distance_x_m,
+        distance_z_m,
+        velocity_x_m.s,
+        velocity_y_m.s,
+        velocity_z_m.s,
+        acceleration_xyz_m.s.s,
+        behind_trees,
         location,
         datetime_aest,
-        temperature,
-        wind_speed,
-        wind_direction,
-        cloud_cover,
-        hours_from_high_tide,
-        background_noise,
-        background_light)
+        temperature_degC,
+        wind_speed_m.s,
+        wind_direction_deg,
+        cloud_cover_percent,
+        time_to_high_tide_hr)
 
 ##################
 #### Save CSV ####

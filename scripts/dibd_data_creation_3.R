@@ -17,7 +17,7 @@
 rm(list = ls())
 
 # Specify required packages
-packages <- c("tidyr", "readr", "dplyr", "ggplot2")
+packages <- c("tidyr", "readr", "dplyr")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -44,8 +44,8 @@ data_prep <- data %>%
     # create analysis parameters
     mutate(
         response = lead(response),
-        tend = lead(time_since_launch),
-        interval = tend - time_since_launch,
+        tend = lead(time_since_launch_s),
+        interval = tend - time_since_launch_s,
         offset = log(interval)) %>%
     # check if another species already took flight
     ungroup() %>%
@@ -53,7 +53,8 @@ data_prep <- data %>%
     group_by(flight, species) %>%
     mutate(sum_response = lead(sum_response)) %>%
     drop_na(response) %>%
-    droplevels()
-
+    droplevels() %>%
+    select(-time_since_launch_s) %>%
+    rename(time_since_launch_s = tend)
 # save ped data as new csv
 write.csv(data_prep, "data/dibd_prep.csv", row.names = FALSE)
