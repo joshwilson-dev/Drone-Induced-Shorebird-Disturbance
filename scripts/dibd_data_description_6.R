@@ -17,7 +17,7 @@
 rm(list = ls())
 
 # Specify required packages
-packages <- c("readr", "dplyr", "ggplot2")
+packages <- c("readr", "dplyr", "ggplot2", "tidyr")
 new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
 
 if (length(new_packages)) {
@@ -47,39 +47,67 @@ total_appraoches <- data %>%
 
 View(total_appraoches)
 
-approaches_species <- data %>%
-    group_by(flight, species) %>%
+approaches <- data %>%
+    group_by(flight, species, count) %>%
     slice(1) %>%
     group_by(species, scientific_name) %>%
-    summarise(Approaches = n())
+    summarise(`Total Approaches` = n())
 
-View(approaches_species)
-
-write.csv(approaches_species, "data/approaches_species.csv", row.names = FALSE)
-
-approaches_per_species_plot <- ggplot(
-    data = approaches_species,
-    aes(x = reorder(species, -Approaches), y = Approaches)) +
-    geom_bar(stat = "identity") +
-    theme(
-        panel.background = element_rect(fill = "white"),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    xlab("Species")
-
-ggsave(
-    "plots/approaches_per_species.png",
-    approaches_per_species_plot,
-    height = 4,
-    width = 4)
-
-approaches_with_sentinel <- data %>%
-    group_by(flight, species) %>%
-    filter(response == 1 & sum_response > 1) %>%
+total <- data %>%
+    mutate(date_aest = as.Date(datetime_aest, tz = "australia/queensland")) %>%
+    group_by(date_aest, location, species) %>%
+    mutate(total = max(count)) %>%
     slice(1) %>%
-    ungroup() %>%
-    summarise(count = n())
+    group_by(species, scientific_name) %>%
+    summarise(`Total Count` = sum(total))
 
-View(approaches_with_sentinel)
+disturbances <- data %>%
+    mutate(date_aest = as.Date(datetime_aest, tz = "australia/queensland")) %>%
+    group_by(date_aest, location, species) %>%
+    mutate(disturbances = max(response)) %>%
+    slice(1) %>%
+    group_by(species, scientific_name) %>%
+    summarise(`Disturbed Approaches` = sum(disturbances))
+
+disturbed <- data %>%
+    mutate(date_aest = as.Date(datetime_aest, tz = "australia/queensland")) %>%
+    group_by(date_aest, location, species) %>%
+    mutate(disturbed = max(response) * max(count)) %>%
+    slice(1) %>%
+    group_by(species, scientific_name) %>%
+    summarise(`Disturbed Count` = sum(disturbed))
+
+no_sentinels <- data %>%
+    filter(response == 0 | sum_response == 1) %>%
+    mutate(date_aest = as.Date(datetime_aest, tz = "australia/queensland")) %>%
+    group_by(date_aest, location, species) %>%
+    mutate(disturbances = max(response)) %>%
+    slice(1) %>%
+    group_by(species, scientific_name) %>%
+    summarise(`Disturbed No Sentinel Approaches` = sum(disturbances))
+
+no_sentinel <- data %>%
+    filter(response == 0 | sum_response == 1) %>%
+    mutate(date_aest = as.Date(datetime_aest, tz = "australia/queensland")) %>%
+    group_by(date_aest, location, species) %>%
+    mutate(sentinel = max(response) * max(count)) %>%
+    slice(1) %>%
+    group_by(species, scientific_name) %>%
+    summarise(`Disturbed No Sentinel Count` = sum(sentinel))
+
+summary <- approaches %>%
+    merge(disturbances) %>%
+    merge(no_sentinels) %>%
+    merge(total) %>%
+    merge(disturbed) %>%
+    merge(no_sentinel) %>%
+    mutate(scientific_name = paste0(
+        toupper(substring(scientific_name, 1, 1)),
+        substring(scientific_name, 2)))
+
+View(summary)
+
+write.csv(summary, "data/approach_summary.csv", row.names = FALSE)
 
 approaches_without_sentinel <- data %>%
     group_by(flight, species) %>%
@@ -107,5 +135,47 @@ approaches_per_drone <- data %>%
 
 View(approaches_per_drone)
 
-sd(data$temperature_degC)
-mean(filter(data, species == "Eastern Curlew")$temperature_degC)
+modus <- function(var) {
+  # calculate modus
+  freqs <- table(var)
+  mod   <- names(freqs)[which.max(freqs)]
+  # factors should be returned as factors with all factor levels
+  if (is.factor(var)) {
+    mod <- factor(mod, levels = levels(var))
+  }
+  return(mod)
+}
+
+num <- summarize_if(data, .predicate = is.numeric, ~mean(., na.rm = TRUE)) %>%
+    pivot_longer(cols = everything(), names_to = "variable") %>%
+    rename("mean" = value)
+
+sd <- summarize_if(data, .predicate = is.numeric, ~sd(., na.rm = TRUE)) %>%
+    pivot_longer(cols = everything(), names_to = "variable") %>%
+    rename("sd" = value)
+
+fac <- summarise_all(select_if(data, ~!is.numeric(.x)), modus) %>%
+    pivot_longer(cols = everything(), names_to = "variable") %>%
+    rename("mode" = value)
+
+reference_data <- num %>%
+    merge(sd) %>%
+    bind_rows(fac) %>%
+    filter(!grepl("count_|response_", variable)) %>%
+    filter(
+        variable != "bird_latitude",
+        variable != "bird_longitude",
+        variable != "flight",
+        variable != "interval",
+        variable != "offset",
+        variable != "response",
+        variable != "sum_response",
+        variable != "wind_direction_deg",
+        variable != "scientific_name",
+        variable != "life_stage",
+        variable != "activity",
+        variable != "age",
+        variable != "datetime_aest")
+View(reference_data)
+
+write.csv(reference_data, "data/reference_data.csv", row.names = FALSE)

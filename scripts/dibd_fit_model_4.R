@@ -4,7 +4,7 @@
 
 # Title: Drone Induced Bird Disturbance Model Training
 # Author: Josh Wilson
-# Date: 13-06-2022
+# Date: 24-04-2022
 # References:
 # https://cran.r-project.org/web/packages/mgcv/mgcv.pdf
 # https://adibender.github.io/pammtools/
@@ -36,10 +36,6 @@ lapply(packages, require, character.only = TRUE)
 data <- read_csv("data/dibd_prep.csv") %>%
     # remove data points where another species already took flight
     filter(response == 0 | sum_response == 1) %>%
-    # filter out species that never took flight
-    group_by(species) %>%
-    filter(max(response) == 1) %>%
-    ungroup() %>%
     # specify factors
     mutate(
         stimulus = as.factor(stimulus),
@@ -64,6 +60,7 @@ system.time({
         s(velocity_y_m.s, k = 5) +
         s(velocity_z_m.s, k = 5) +
         s(acceleration_xyz_m.s.s, k = 5) +
+        s(repeat_approaches, k = 5) +
         # environment
         s(time_since_launch_s, k = 5) +
         behind_trees +
@@ -74,6 +71,7 @@ system.time({
         location +
         # target
         species +
+        s(body_mass, k = 5) +
         s(count, k = 5) +
         s(flight, bs = "re"),
         data = data,
@@ -85,7 +83,7 @@ system.time({
 
 # save model
 saveRDS(fit, "models/model.rds")
-# fit <- readRDS("models/model.rds")
+fit <- readRDS("models/model.rds")
 
 #######################
 #### analyse model ####
@@ -112,6 +110,40 @@ num <- summarize_if(data, .predicate = is.numeric, ~mean(., na.rm = TRUE))
 fac <- summarise_all(select_if(data, ~!is.numeric(.x)), modus)
 ref_data <- bind_cols(num, fac)
 
+included_species <- c(
+    "Eastern Curlew",
+    "Australian Pelican",
+    "Grey-tailed Tattler",
+    "Whimbrel",
+    "Gull-billed Tern",
+    "Royal Spoonbill",
+    "Great Knot",
+    "Pied Stilt",
+    "Masked Lapwing",
+    "Caspian Tern",
+    "Pied Oystercatcher",
+    # "Bar-tailed Godwit",
+    "White-faced Heron"
+    # "Marsh Sandpiper",
+    # "Curlew Sandpiper",
+    # "Australian White Ibis",
+    # "Black Swan",
+    # "Cattle Egret",
+    # "Great Egret",
+    # "Intermediate Egret",
+    # "Little Egret",
+    # "Silver Gull",
+    # "Terek Sandpiper"
+    )
+
+included_locations <- c(
+    "Thorneside",
+    "Toorbul",
+    "Wellington Point",
+    "Meldale",
+    "Cleveland"
+)
+
 # create plots
 for (term in attributes(fit$terms)$term.labels) {
     print(term)
@@ -123,16 +155,34 @@ for (term in attributes(fit$terms)$term.labels) {
     # and get sequence from min to max, or all unique categories
     # altitude has an interaction term
     if (typeof(data[[term]]) == "double") {
-        term_data = seq(min(data[[term]]), max(data[[term]]))
-        if (term == "velocity_z_m.s") {term_data <- term_data * -1}
-        assign(term, term_data)
+        term_data <- seq(min(data[[term]]), max(data[[term]]))
+        if (term == "velocity_z_m.s") {
+            term_data <- term_data * -1
+            }
         if (term == "distance_z_m") {
+            term_data <- seq(3, 120)
             height <- 6
             width <- 6
-            species <- rep(levels(data$species), each = length(distance_z_m))
+            species <- rep(
+                levels(factor(included_species)),
+                each = length(term_data)
+                )
             ref <- select(ref_data, -species)
-            ref <- cbind(species, ref)}}
-    else {assign(term, levels(data[[term]]))}
+            ref <- cbind(species, ref)
+            }
+        assign(term, term_data)
+        }
+    else {
+        if (term == "species") {
+            assign(term, levels(factor(included_species)))
+            }
+        else if (term == "location") {
+            assign(term, levels(factor(included_locations)))
+        }
+        else {
+            assign(term, levels(data[[term]]))
+            }
+        }
     # remove the term column from the refence data
     ref <- select(ref, -!!term)
     # create the new data
@@ -147,23 +197,27 @@ for (term in attributes(fit$terms)$term.labels) {
     # transform prediction to response scale
     prediction <- cbind(newdata, pred) %>%
         mutate(
-            upr = ilink(fit + (2 * se.fit)),
-            lwr = ilink(fit - (2 * se.fit)),
-            fit = ilink(fit))
+            iupr = ilink(fit + (2 * se.fit)),
+            ilwr = ilink(fit - (2 * se.fit)),
+            ifit = ilink(fit))
     # generate plot
-    plot <- ggplot(data = prediction, aes_string(x = term, y = "fit")) +
+    plot <- ggplot(data = prediction, aes_string(x = term, y = "ifit")) +
         theme_bw() +
         {if (typeof(data[[term]]) == "double") list(
             geom_line(),
-            geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.5))} +
+            geom_ribbon(aes(ymin = ilwr, ymax = iupr), alpha = 0.5))} +
         {if (typeof(data[[term]]) != "double") list(
             geom_pointrange(
                 aes_string(
-                    x = paste0("reorder(", term, ", -fit)"),
-                    ymin = "lwr",
-                    ymax = "upr")),
-            theme(axis.text.x = element_text(angle = 90, vjust = 0.5)))} +
-        {if (term == "distance_z_m") facet_wrap("species")} +
+                    x = paste0("reorder(", term, ", -ifit)"),
+                    ymin = "ilwr",
+                    ymax = "iupr")),
+            theme(
+                axis.text.x = element_text(angle = 90, vjust = 0.5)))} +
+        {if (term == "distance_z_m") list(
+            facet_wrap("species"),
+            scale_x_continuous(
+                breaks = seq(0, 120, 30)))} +
         ylab("hazard rate") +
         xlab(
             gsub("_", " ",
@@ -174,7 +228,6 @@ for (term in attributes(fit$terms)$term.labels) {
             breaks = c(10^-12 %o% 10^seq(2, 10, 2)),
             trans = scales::log_trans()) +
         coord_cartesian(ylim = c(10^-11, 0.1))
-
     # save plot
     plot_name <- paste0("plots/", term, ".png")
     ggsave(plot_name, plot, height = height, width = width)

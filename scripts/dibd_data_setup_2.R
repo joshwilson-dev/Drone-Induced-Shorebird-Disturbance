@@ -87,7 +87,31 @@ sci_com <- data.frame(
         "Masked Lapwing",
         "Terek Sandpiper",
         "Curlew Sandpiper"
-    )
+    ),
+    body_mass = c(
+        "0.874",
+        "0.462",
+        "0.366",
+        "0.192",
+        "0.289",
+        "5.650",
+        "0.312",
+        "0.560",
+        "0.264",
+        "0.614",
+        "0.161",
+        "0.655",
+        "0.278",
+        "0.792",
+        "0.352",
+        "5.505",
+        "1.731",
+        "1.806",
+        "0.127",
+        "0.078",
+        "0.387",
+        "0.079",
+        "0.058")
 )
 
 # creating clean dataset
@@ -271,6 +295,9 @@ data_clean <- data_long %>%
         life_stage = "non-breeding",
         age = "adult",
         stimulus = drone) %>%
+    # add repeat approaches
+    group_by(date_aest, location, species) %>%
+    mutate(repeat_approaches = flight - first(flight)) %>%
     # crop data to 10s after birds take flight
     group_by(flight, species, response) %>%
     filter(response == 0 | row_number() <= 100) %>%
@@ -318,11 +345,13 @@ data_complete <- data_clean %>%
         life_stage,
         activity,
         age,
+        body_mass,
         bird_latitude,
         bird_longitude,
         contains("count_"),
         contains("response_"),
         stimulus,
+        repeat_approaches,
         distance_x_m,
         distance_z_m,
         velocity_x_m.s,

@@ -124,10 +124,12 @@ log_simulator <- function(fit, altitude_list, species_list) {
                     temperature_degC = ref$temperature_degC,
                     location = ref$location,
                     stimulus = ref$stimulus,
-                    # stimulus = "inspire 2",
                     behind_trees = ref$behind_trees,
                     count = ref$count,
-                    test_altitude = test_altitude)
+                    test_altitude = test_altitude,
+                    repeat_approaches = 0,
+                    body_mass = unlist(slice(
+                        filter(data_fit, species == target)["body_mass"], 1)))
             # predicting survival probability
             if (target %in% fit_species) {
                 pred <- predict(
@@ -165,94 +167,57 @@ log_simulator <- function(fit, altitude_list, species_list) {
 altitudes <- seq(from = 0, to = 120, by = 10)
 
 # predict just for species with enough data and relevant
-target_birds <- c(
-            "Eastern Curlew",
-            "Grey-tailed Tattler",
-            "Whimbrel",
-            "Gull-billed Tern",
-            "Royal Spoonbill",
-            "Great Knot",
-            "Pied Stilt",
-            "Masked Lapwing",
-            "Caspian Tern",
-            "Pied Oystercatcher",
-            "Bar-tailed Godwit",
-            "Terek Sandpiper")
+included_species <- c(
+    "Eastern Curlew",
+    "Australian Pelican",
+    "Grey-tailed Tattler",
+    "Whimbrel",
+    "White-faced Heron",
+    "Gull-billed Tern",
+    "Pied Stilt",
+    "Royal Spoonbill",
+    "Great Knot",
+    "Masked Lapwing",
+    "Caspian Tern",
+    "Pied Oystercatcher"
+    # "Bar-tailed Godwit",
+    # "Marsh Sandpiper",
+    # "Curlew Sandpiper",
+    # "Australian White Ibis",
+    # "Black Swan",
+    # "Cattle Egret",
+    # "Great Egret",
+    # "Intermediate Egret",
+    # "Little Egret",
+    # "Silver Gull",
+    # "Terek Sandpiper"
+    )
 
 # generate predictions
-flight_data <- log_simulator(fit, altitudes, target_birds) %>%
-    mutate(species = factor(species, levels = target_birds, ordered = TRUE))
-
-# example prediction
-example_prediction <- flight_data %>%
-    # select eastern curlew
-    filter(
-        test_altitude == 120,
-        species == "Eastern Curlew") %>%
-    # normalise drone position
-    mutate(
-        distance_x_m = distance_x_m / max(distance_x_m),
-        distance_z_m = distance_z_m / max(distance_z_m)) %>%
-    # pivot for plotting
-    pivot_longer(
-        c(distance_x_m, distance_z_m, flight_prob),
-        names_to = "legend",
-        values_to = "line") %>%
-    mutate(legend = case_when(
-        legend == "flight_prob" ~ "probability of birds taking flight",
-        legend == "distance_x_m" ~ "normalised distance x [0:500m]",
-        legend == "distance_z_m" ~ "normalised distance z [0:120m]"))
-
-# plot the prediction
-example_prediction_plot <- ggplot() +
-    geom_line(
-        data = example_prediction,
-        aes(y = line, x = time_since_launch_s, linetype = legend),
-        size = 1) +
-    geom_ribbon(
-        data = filter(
-            example_prediction,
-            legend == "probability of birds taking flight"),
-        aes(x = time_since_launch_s, ymin = flight_lower, ymax = flight_upper),
-        alpha = 0.3) +
-    scale_linetype_manual(values = c("dotted", "twodash", "solid")) +
-    xlab("time since launch s") +
-    ylab("normalised values") +
-    coord_cartesian(ylim = c(0, 1)) +
-    theme_bw() +
-    theme(
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.box = "horizontal",
-        axis.title = element_text(size = 20),
-        axis.text = element_text(size = 15),
-        legend.text = element_text(size = 15)) +
-    guides(linetype = guide_legend(nrow = 3))
-
-ggsave(
-    "plots/example_prediction.png",
-    example_prediction_plot,
-    height = 5,
-    width = 5)
+flight_data <- log_simulator(fit, altitudes, included_species) %>%
+    mutate(species = factor(species, levels = included_species, ordered = TRUE))
 
 # creating contour plot of flight probability for each species
 # only use advancing data to avoid conflicting points
+# also take tiny amount of 1.0 flight prob for plot aesthetics
 advancing <- flight_data %>%
     mutate(distance_z_m = round(distance_z_m)) %>%
-    filter(distance_z_m == test_altitude)
+    filter(distance_z_m == test_altitude) %>%
+    mutate(flight_prob = case_when(
+        flight_prob == 1 ~ 1 - exp(-10), T ~ flight_prob))
 
 # add data used for plots
 data_raw <- data_fit %>%
     # inspire 2 significantly more disturbance than smaller drones
     filter(stimulus != "inspire 2") %>%
-    #only getraw data for included species
-    filter(species %in% target_birds) %>%
+    # only get raw data for included species
+    filter(species %in% included_species) %>%
     # only keep points at 20s intervals to avoid crowding plots
     filter(time_since_launch_s %% 30 == 0 | response == 1) %>%
     # change binary response to descriptive
     mutate(response = case_when(
-        response == 1 ~ "flight",
-        response == 0 ~ "no flight")) %>%
+        response == 1 ~ "Flight",
+        response == 0 ~ "No Flight")) %>%
     arrange(desc(response))
 
 fid_plot <- ggplot() +
@@ -260,19 +225,19 @@ fid_plot <- ggplot() +
     geom_contour_filled(
         data = advancing,
         aes(x = distance_x_m, y = distance_z_m, z = flight_prob),
-        binwidth = 0.25) +
+        binwidth = 0.2) +
     # add black contour lines
     geom_contour(
         data = advancing,
         aes(x = distance_x_m, y = distance_z_m, z = flight_prob),
-        binwidth = 0.25,
+        binwidth = 0.2,
         size = 0.15,
         colour = "black") +
     # add dashed line for upper confidence interval at 0.5
     geom_contour(
         data = advancing,
         aes(
-            linetype = "50% flight prob upper ci",
+            linetype = "50% Flight Probability CI",
             x = distance_x_m,
             y = distance_z_m,
             z = flight_lower),
@@ -284,7 +249,7 @@ fid_plot <- ggplot() +
         data = data_raw,
         aes(x = distance_x_m, y = distance_z_m,
         colour = factor(response)),
-        size = 0.35) +
+        size = 0.25) +
     # define colours for flight probability contours
     scale_fill_grey(start = 1.0, end = 0.5) +
     # define colours for points
@@ -292,18 +257,20 @@ fid_plot <- ggplot() +
     # define linetype for 50% Flight Prob Upper CI contour
     scale_linetype_manual(values = c("dashed")) +
     # plot aesthetics
-    theme(panel.background = element_rect(fill = "white")) +
-    xlab("distance x m") +
-    ylab("distance z m") +
+    theme(
+        panel.spacing = unit(0.5, "cm"),
+        panel.background = element_rect(fill = "white")) +
+    ylab("Altitude [m]") +
+    xlab("Ground Distance [m]") +
     labs(
-        colour = "raw data",
-        fill = "flight probability",
-        linetype = "95% confidence interval") +
-    scale_x_continuous(limits = c(0, 500), expand = c(0, 0)) +
+        colour = "Raw Data",
+        fill = "Flight Probability",
+        linetype = "95% Confidence Interval") +
+    scale_x_continuous(limits = c(0, 300), expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
     coord_fixed() +
     # facet wrap by common name
-    facet_wrap("species", ncol = 3)
+    facet_wrap("species", ncol = 4)
 
 # save plot
 ggsave("plots/fid.png", fid_plot, height = 5, width = 10)
@@ -375,38 +342,29 @@ sentinel_points <- data %>%
     # flight and species
     group_by(flight, species) %>%
     filter(response == 1) %>%
-    mutate(response = "flight") %>%
+    mutate(response = "Flight") %>%
     # keep only target species
-    filter(species %in% target_birds) %>%
-    # drop Eastern Curlew
-    mutate(species = factor(species, levels = target_birds, ordered = TRUE)) %>%
-    filter(species != "Eastern Curlew") %>%
+    filter(species %in% included_species) %>%
+    # reset levels
+    mutate(
+        species = factor(species, levels = included_species, ordered = TRUE)
+        ) %>%
     slice(1)
 
 sentinel_pts_plot <- ggplot() +
     # add filled contours
     geom_contour_filled(
-        data = filter(advancing, species != "Eastern Curlew"),
+        data = filter(advancing),
         aes(x = distance_x_m, y = distance_z_m, z = flight_prob),
-        binwidth = 0.25) +
+        binwidth = 0.2) +
     # add black contour lines
     geom_contour(
-        data = filter(advancing, species != "Eastern Curlew"),
+        # data = filter(advancing, species != "Eastern Curlew"),
+        data = filter(advancing),
         aes(x = distance_x_m, y = distance_z_m, z = flight_prob),
-        binwidth = 0.25,
+        binwidth = 0.2,
         size = 0.15,
         colour = "black") +
-    # add dashed line for upper confidence interval at 0.5
-    geom_contour(
-        data = filter(advancing, species != "Eastern Curlew"),
-        aes(
-            linetype = "50% flight prob upper ci",
-            x = distance_x_m,
-            y = distance_z_m,
-            z = flight_lower),
-        breaks = 0.5,
-        colour = "black",
-        size = 0.5) +
     # add raw data points
     geom_point(
         data = sentinel_points,
@@ -419,17 +377,18 @@ sentinel_pts_plot <- ggplot() +
     # define linetype for 50% Flight Prob Upper CI contour
     scale_linetype_manual(values = c("dashed")) +
     # plot aesthetics
-    theme(panel.background = element_rect(fill = "white")) +
+    theme(
+        panel.spacing = unit(0.5, "cm"),
+        panel.background = element_rect(fill = "white")) +
+    ylab("Altitude [m]") +
+    xlab("Ground Distance [m]") +
     labs(
-        colour = "raw data",
-        fill = "flight probability",
-        linetype = "95% confidence interval") +
-    scale_x_continuous(limits = c(0, 500), expand = c(0, 0)) +
+        colour = "Raw Data",
+        fill = "Flight Probability") +
+    scale_x_continuous(limits = c(0, 300), expand = c(0, 0)) +
     scale_y_continuous(limits = c(0, 120), expand = c(0, 0)) +
     coord_fixed() +
-    xlab("distance x m") +
-    ylab("distance z m") +
     # facet wrap by common name
-    facet_wrap("species", ncol = 3)
+    facet_wrap("species", ncol = 4)
 
 ggsave("plots/sentinel_points.png", sentinel_pts_plot, height = 5, width = 10)
