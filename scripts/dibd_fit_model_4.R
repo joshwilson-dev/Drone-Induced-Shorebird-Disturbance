@@ -4,7 +4,7 @@
 
 # Title: Drone Induced Bird Disturbance Model Training
 # Author: Josh Wilson
-# Date: 24-04-2022
+# Date: 24-04-2023
 # References:
 # https://cran.r-project.org/web/packages/mgcv/mgcv.pdf
 # https://adibender.github.io/pammtools/
