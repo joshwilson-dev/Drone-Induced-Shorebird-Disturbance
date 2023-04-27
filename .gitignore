@@ -1,7 +1,9 @@
+/renv
+/raw-data
+
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
-/renv
 .Rprofile
 renv.lock
